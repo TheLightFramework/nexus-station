@@ -27,13 +27,14 @@ function base64EncodeUtf8(text: string): string {
   return btoa(unescape(encodeURIComponent(text)));
 }
 
-async function validateDraftViaBackend(userMsg: string): Promise<AuditResponse> {
+async function validateDraftViaBackend(userMsg: string, blueprint: string = ""): Promise<AuditResponse> {
   const res = await fetch(`${BACKEND_URL}/api/v1/validate-draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "accept": "application/json" },
     body: JSON.stringify({
       content_base64: base64EncodeUtf8(userMsg),
       project_name: "Nexus Station",
+      context: blueprint, // <--- THE MISSING LINK
     }),
   });
 
@@ -101,7 +102,7 @@ function App() {
 
     try {
       // 1) Validate Draft (Gate + Hull)
-      const audit = await validateDraftViaBackend(userMsg);
+      const audit = await validateDraftViaBackend(userMsg, blueprint); 
       const verdict = audit.security_verdict;
       setStatus(verdict);
 

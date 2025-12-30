@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request
 from app.schemas.audit import DraftRequest, AuditResponse, LpInfo, HullInfo
-from app.security.gate import validate_and_decode
 
 from app.security.admissibility import evaluate_admissibility
 from app.security.refraction import build_refraction  # NEW
@@ -18,7 +17,7 @@ async def validate_draft(payload: DraftRequest, request: Request):
     clean_text = normalize_text_for_scan(raw_text)
 
     # 2) L2 Gate: Hull v2.1 semantic admissibility (Runs on normalized text)
-    admissibility = evaluate_admissibility(clean_text)
+    admissibility = evaluate_admissibility(prompt=clean_text, prompt_context=payload.context or "")
     verdict = admissibility["admissible"]  # CLEAR | AMBIGUOUS | REJECTED
 
     # 3) Attach Live-Patch metadata (Lp + Hull)

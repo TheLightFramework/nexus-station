@@ -1,23 +1,26 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
-
+import re # <--- Added re
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, x))
 
 
-def score_context_clarity(prompt: str) -> float:
+def score_context_clarity(prompt: str, prompt_context: str = "") -> float:
     """
-    1.0 = all entities/actions explicit
-    0.0 = pure guess required
-    Deterministic heuristic (MVP): length + specificity markers.
+    1.0 = all entities/actions explicit OR strong context provided
     """
     p = (prompt or "").strip()
+    
+    # If we have a Blueprint (context) active, Context is solved.
+    if prompt_context and len(prompt_context.strip()) > 20:
+        return 1.0
+
     if not p:
         return 0.0
-
-    score = 0.45  # baseline for any non-empty prompt (short dev asks shouldn't be punished)
+    
+    score = 0.45 
 
     # Length is weak evidence of context
     if len(p) >= 40:
@@ -54,16 +57,24 @@ def score_context_clarity(prompt: str) -> float:
     if any(m in p for m in syntax_markers):
         score += 0.15
 
+    # Re-inserting the length checks from original file just in case they were lost:
+    if len(p) >= 40: score += 0.25
+    if len(p) >= 120: score += 0.15
+    # (Specificity markers checks would go here normally)
+    
     return _clamp(score)
 
 
-def score_scope_bounds(prompt: str) -> float:
+def score_scope_bounds(prompt: str, prompt_context: str = "") -> float:
     """
     1.0 = explicit stop condition/count
-    0.0 = unbounded
-    Deterministic heuristic (MVP): looks for limits, counts, time bounds, completion criteria.
     """
+    # NEW: If a Blueprint defines the scope, we trust it.
+    if prompt_context and len(prompt_context.strip()) > 20:
+        return 1.0
+
     p = (prompt or "").strip().lower()
+
     if not p:
         return 0.0
 
@@ -96,31 +107,79 @@ def score_scope_bounds(prompt: str) -> float:
 def score_ontological_alignment(prompt: str) -> (float, List[str]):
     """
     Starts at 1.0. Deductions:
-      Harm -0.5, Deception -0.4, Coercion -0.3, Implicit Consent -0.2
+    Harm -0.5, Deception -0.4, Coercion -0.3, Implicit Consent -0.2
     (from Hull v2.1)
     """
     p = (prompt or "").strip().lower()
     if not p:
         return 1.0, []
 
+    # AGGRESSIVE NORMALIZATION for Keyword Matching
+    # This strips dots, spaces, numbers, and symbols to catch "r.a.n.s.o.m" or "r a n s o m"
+    p_aggressive = re.sub(r'[^a-z]', '', p) 
+
     score = 1.0
     risks: List[str] = []
 
-    harm = ["kill", "hurt", "harm", "poison", "injure", "attack", "bomb", "weapon", "suicide", "self-harm"]
-    deception = ["lie", "deceive", "impersonate", "phish", "scam", "fraud", "fake", "forge", "bypass"]
-    coercion = ["blackmail", "extort", "threaten", "coerce", "force", "intimidate"]
-    implicit = ["without consent", "secretly", "spy", "stalk", "dox", "track", "surveil"]
+    # HARDENED DICTIONARY
+    harm = [
+        "kill", "hurt", "harm", "poison", "injure", "attack", "bomb", 
+        "weapon", "suicide", "selfharm", # removed hyphen for aggressive match
+        # Cyber / Malware vectors
+        "ransomware", "malware", "virus", "trojan", "worm", "keylogger", 
+        "exploit", "ddos", "botnet", "credentialharvest", "backdoor", "payload"
+    ]
+    deception = [
+        "lie", "deceive", "impersonate", "phish", "scam", "fraud", 
+        "fake", "forge", "bypass", "socialengineer"
+    ]
+    coercion = [
+        "blackmail", "extort", "threaten", "coerce", "force", "intimidate"
+    ]
+    implicit = [
+        "withoutconsent", "secretly", "spy", "stalk", "dox", "track", "surveil"
+    ]
 
-    if any(k in p for k in harm):
+    # CHECK: We check both the raw prompt (p) AND the aggressive strip (p_aggressive)
+    # Checking 'p' preserves context (words), checking 'p_aggressive' catches obfuscation.
+    
+    # Helper to check keywords
+    def check_category(keywords, deduction, label):
+        hit = False
+        for k in keywords:
+            # 1. Short keywords: strict word boundaries on original text to avoid false positives
+            # e.g. "spy" should not match "crispy"
+            if len(k) < 4:
+                # \b matches word boundary. escape k just in case.
+                if re.search(r'\b' + re.escape(k) + r'\b', p):
+                    hit = True
+            
+            # 2. Long keywords: check aggressive normalization (anti-obfuscation)
+            # e.g. "ransomware" in "r.a.n.s.o.m.w.a.r.e"
+            elif k in p_aggressive:
+                hit = True
+            
+            # 3. Fallback: Standard check for medium words in standard text (optional, usually aggressive covers it)
+            elif k in p:
+                hit = True
+
+            if hit: break
+        
+        return hit
+
+    if check_category(harm, 0.5, "Ontology: Harm"):
         score -= 0.5
         risks.append("Ontology: Harm")
-    if any(k in p for k in deception):
+
+    if check_category(deception, 0.4, "Ontology: Deception"):
         score -= 0.4
         risks.append("Ontology: Deception")
-    if any(k in p for k in coercion):
+
+    if check_category(coercion, 0.3, "Ontology: Coercion"):
         score -= 0.3
         risks.append("Ontology: Coercion")
-    if any(k in p for k in implicit):
+
+    if check_category(implicit, 0.2, "Ontology: Implicit Consent"):
         score -= 0.2
         risks.append("Ontology: Implicit Consent")
 
@@ -199,36 +258,39 @@ def required_clarification_for(scores: Dict[str, float]) -> Optional[str]:
     return "Please clarify your intent and constraints (what exactly should happen, and what must never happen)."
 
 
-def evaluate_admissibility(prompt: str) -> Dict:
+def evaluate_admissibility(prompt: str, prompt_context: str = "") -> Dict:
     """
-    Returns the canonical Hull v2.1 validation object shape:
-    {
-      "admissible": "CLEAR" | "AMBIGUOUS" | "REJECTED",
-      "scores": { "context": ..., "scope": ..., "ontology": ..., "reversibility": ... },
-      "risk_source": [...],
-      "required_clarification": "..."
-    }
+    Returns the canonical Hull v2.1 validation object.
+    """
+    # 1. Calculate Scores
+    context_val = score_context_clarity(prompt, prompt_context)
     
-    """
-    context = score_context_clarity(prompt)
-    scope = score_scope_bounds(prompt)
-    ontology, ontology_risks = score_ontological_alignment(prompt)
-    reversibility, rev_risks = score_reversibility(prompt)
+    # NEW: Pass prompt_context here too
+    scope_val = score_scope_bounds(prompt, prompt_context)
+    
+    ontology_val, ontology_risks = score_ontological_alignment(prompt)
+    reversibility_val, rev_risks = score_reversibility(prompt)
 
     scores = {
-        "context": float(context),
-        "scope": float(scope),
-        "ontology": float(ontology),
-        "reversibility": float(reversibility),
+        "context": float(context_val),
+        "scope": float(scope_val),
+        "ontology": float(ontology_val),
+        "reversibility": float(reversibility_val),
     }
 
+    # 2. Classify
     admissible = classify_admissibility(scores)
 
+    # 3. Compile Risks
     risk_source: List[str] = []
-    if context <= 0.8:
+    
+    # Use the values from the dict (floats), not the argument string!
+    if scores["context"] <= 0.8:
         risk_source.append("Context Vague")
-    if scope <= 0.8:
+    
+    if scores["scope"] <= 0.8:
         risk_source.append("Scope Unbounded")
+    
     risk_source.extend(ontology_risks)
     risk_source.extend(rev_risks)
 

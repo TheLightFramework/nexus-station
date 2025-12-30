@@ -6,6 +6,7 @@ class DraftRequest(BaseModel):
     # The content must be Base64 encoded by the Frontend to add a friction layer
     content_base64: str = Field(..., description="Base64 encoded Markdown draft")
     project_name: str
+    context: Optional[str] = None # <--- NEW FIELD
 
 
 class LpInfo(BaseModel):

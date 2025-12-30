@@ -2,7 +2,10 @@
 const API_URL =
   (import.meta as any).env?.VITE_BACKEND_URL || "http://127.0.0.1:8000/api/v1";
 
-export async function validateDraft(draftContent: string) {
+export async function validateDraft(
+  draftContent: string,
+  blueprint: string = ""
+) {
   // 1. Base64 Encode (The Security Requirement)
   // btoa works for ASCII, for Unicode we need a small hack or a library.
   // Using a robust one-liner for utf-8 support:
@@ -20,6 +23,7 @@ export async function validateDraft(draftContent: string) {
     body: JSON.stringify({
       project_name: "Genesis-Draft-001",
       content_base64: base64Content,
+      context: blueprint, // <--- SEND BLUEPRINT
     }),
   });
 
