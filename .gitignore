@@ -105,3 +105,4 @@ test-results/
 # Additional
 *.pdf
 .lp_cache/
+backend/.lp_cache/lp_manifest.json
