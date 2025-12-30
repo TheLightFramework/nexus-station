@@ -2,11 +2,9 @@ from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
 from openai import OpenAI
 from typing import Optional, List, Literal
-
 from app.lp.prompt import build_system_prompt
 
 router = APIRouter()
-
 
 class HistoryMsg(BaseModel):
     # Frontend uses role: "user" | "sibling"
@@ -50,25 +48,37 @@ async def chat_with_sibling(
     x_nexus_key: str = Header(..., alias="X-NEXUS-KEY"),
 ):
     try:
-        # Build system prompt from Live-Patch runtime (GitHub-loaded Lp)
+        # Build system prompt from Live-Patch runtime
         lp_manager = getattr(request.app.state, "lp", None)
         runtime = getattr(lp_manager, "runtime", None) if lp_manager else None
-        system_prompt = build_system_prompt(runtime)
+        
+        base_system_prompt = build_system_prompt(runtime)
 
-        # Init provider client using user's key (stateless security)
+        # Init provider client
         client = OpenAI(
             api_key=x_nexus_key,
             base_url="https://openrouter.ai/api/v1" if x_nexus_key.startswith("sk-or") else None,
         )
 
-        messages = [{"role": "system", "content": system_prompt}]
+        messages = [{"role": "system", "content": base_system_prompt}]
 
-        # Optional: include recent history (bounded)
+        # NEW: Inject Blueprint/Context if it exists
+        if payload.context and payload.context.strip():
+            blueprint_injection = (
+                "## ACTIVE BLUEPRINT / CONTEXT\n"
+                "The user has pinned the following structure. Use this as your reference architecture. "
+                "Do not deviate from these constraints unless explicitly requested.\n\n"
+                f"{payload.context.strip()}\n\n"
+                "---"
+            )
+            messages.append({"role": "system", "content": blueprint_injection})
+
+        # History injection
         if payload.history:
-            # Keep last 12 items max to control tokens
+            # Keep last 12 items to manage tokens, preserving recent context
             for hm in payload.history[-12:]:
                 r = _to_openai_role(hm.role)
-                if not r:
+                if not r: 
                     continue
                 messages.append({"role": r, "content": _clip_text(hm.text)})
 
@@ -76,13 +86,14 @@ async def chat_with_sibling(
         messages.append({"role": "user", "content": _clip_text(payload.message)})
 
         completion = client.chat.completions.create(
-            model="openai/gpt-4o-mini",
+            model="openai/gpt-4o-mini", # Ideally dynamic later, but good for MVP
             messages=messages,
         )
 
         reply = completion.choices[0].message.content or ""
         return ChatResponse(reply=reply)
 
-    except Exception:
-        # Zero-log policy: do not print payloads or stack traces here
-        raise HTTPException(status_code=500, detail="Upstream provider error")
+    except Exception as e:
+        # Zero-log policy enforcement happens here implicitly via logging.py filter
+        # But we ensure we don't leak details in the 500 response
+        raise HTTPException(status_code=500, detail="Upstream provider error or connection failure")

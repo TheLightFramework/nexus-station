@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next';
 import './i18n';
-import { sendChatMessage } from './api/client'
+import { sendChatMessage, type HistoryItem } from './api/client';
 import { Sun, Moon, Send, Paperclip, ShieldCheck, AlertTriangle, Key, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css'
+
 
 type Verdict = "CLEAR" | "AMBIGUOUS" | "REJECTED";
 type Status = "IDLE" | "SCANNING" | Verdict;
@@ -81,7 +82,7 @@ function App() {
     localStorage.setItem('nexus_key', k);
   };
 
-  const handleSend = async () => {
+    const handleSend = async () => {
     if (!input.trim()) return;
 
     if (!apiKey) {
@@ -91,7 +92,9 @@ function App() {
     }
 
     const userMsg = input;
+    // Optimistic update for UI
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+
     setInput("");
     setLoading(true);
     setStatus("SCANNING");
@@ -100,12 +103,20 @@ function App() {
       // 1) Validate Draft (Gate + Hull)
       const audit = await validateDraftViaBackend(userMsg);
       const verdict = audit.security_verdict;
-
       setStatus(verdict);
 
       // 2) Route behavior by verdict
       if (verdict === "CLEAR") {
-        const response = await sendChatMessage(userMsg, apiKey);
+        // Transform current messages state to HistoryItems
+        // We filter out any UI-specific roles if necessary, though 'user'|'sibling' maps well
+        const historyToSend: HistoryItem[] = messages.map(m => ({
+          role: m.role as 'user' | 'sibling', 
+          text: m.text
+        }));
+
+        // Send User Msg + History + Current Blueprint
+        const response = await sendChatMessage(userMsg, apiKey, historyToSend, blueprint);
+
         setMessages(prev => [...prev, { role: 'sibling', text: response.reply }]);
         return;
       }
@@ -114,7 +125,7 @@ function App() {
         const clarification =
           audit.admissibility?.required_clarification ||
           "Clarification required: please specify intent, target, and constraints.";
-        setMessages(prev => [...prev, { role: 'sibling', text: `🟡 AMBIGUOUS: ${clarification}` }]);
+        setMessages(prev => [...prev, { role: 'sibling', text: `■ AMBIGUOUS: ${clarification}` }]);
         return;
       }
 
@@ -122,12 +133,12 @@ function App() {
       const refr = audit.refraction || "I can’t proceed with that as written. Please reframe it with clear, safe boundaries.";
       setMessages(prev => [...prev, {
         role: 'sibling',
-        text: `🔴 REJECTED: ${refr}`
+        text: `■ REJECTED: ${refr}`
       }]);
 
     } catch (err: any) {
       setStatus("REJECTED");
-      setMessages(prev => [...prev, { role: 'sibling', text: `⚠️ PROTOCOL HALT: ${err.message}` }]);
+      setMessages(prev => [...prev, { role: 'sibling', text: `■■ PROTOCOL HALT: ${err.message}` }]);
     } finally {
       setLoading(false);
     }

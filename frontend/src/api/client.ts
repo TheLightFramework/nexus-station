@@ -1,5 +1,6 @@
 // Simple fetch wrapper to talk to FastAPI
-const API_URL = "http://localhost:8000/api/v1";
+const API_URL =
+  (import.meta as any).env?.VITE_BACKEND_URL || "http://127.0.0.1:8000/api/v1";
 
 export async function validateDraft(draftContent: string) {
   // 1. Base64 Encode (The Security Requirement)
@@ -30,14 +31,28 @@ export async function validateDraft(draftContent: string) {
   return response.json();
 }
 
-export async function sendChatMessage(message: string, apiKey: string) {
+export type HistoryItem = {
+  role: "user" | "sibling" | "assistant";
+  text: string;
+};
+
+export async function sendChatMessage(
+  message: string,
+  apiKey: string,
+  history: HistoryItem[] = [],
+  blueprint: string = ""
+) {
   const response = await fetch(`${API_URL}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-NEXUS-KEY": apiKey, // La clé voyage ici
+      "X-NEXUS-KEY": apiKey,
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({
+      message,
+      history,
+      context: blueprint, // Mapping 'blueprint' to the 'context' field in backend schema
+    }),
   });
 
   if (!response.ok) {

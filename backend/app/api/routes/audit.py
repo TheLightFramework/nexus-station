@@ -4,15 +4,20 @@ from app.security.gate import validate_and_decode
 
 from app.security.admissibility import evaluate_admissibility
 from app.security.refraction import build_refraction  # NEW
+from app.security.gate import validate_and_decode
+from app.security.normalize import normalize_text_for_scan  # <--- NEW IMPORT
 
 router = APIRouter()
 
 @router.post("/validate-draft", response_model=AuditResponse)
 async def validate_draft(payload: DraftRequest, request: Request):
-    # 1) L1 Gate: regex + base64 friction scan. If it fails, execution stops here.
-    clean_text = validate_and_decode(payload.content_base64)
+    # 1) L1 Gate: regex + base64 friction scan
+    raw_text = validate_and_decode(payload.content_base64)
+    
+    # NEW: Normalize BEFORE semantic analysis to defeat obfuscation
+    clean_text = normalize_text_for_scan(raw_text)
 
-    # 2) L2 Gate: Hull v2.1 semantic admissibility
+    # 2) L2 Gate: Hull v2.1 semantic admissibility (Runs on normalized text)
     admissibility = evaluate_admissibility(clean_text)
     verdict = admissibility["admissible"]  # CLEAR | AMBIGUOUS | REJECTED
 
