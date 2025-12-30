@@ -1,0 +1,106 @@
+# ───────────────────────────────────────────────────────────────
+#                Lp / nexus-station recommended .gitignore
+#         (Frontend + Python backend + common dev tools - 2025)
+# ───────────────────────────────────────────────────────────────
+
+# ================ Node.js / Frontend ================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+out/
+build/
+dist/
+coverage/
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ================ Python / Backend ================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.dmypy.json
+.pytype/
+.ruff_cache/
+.dmypy/
+.mypy/
+.pyright/
+.pyrightconfig.json
+
+# Virtual environments & dependency managers
+pipenv/
+poetry.lock          # ← keep if you use poetry consistently, remove if you don't
+requirements.txt     # ← optional: ignore if you use pyproject.toml + poetry/pdm/uv
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Logs & temporary files
+*.log
+*.tmp
+*.bak
+temp/
+tmp/
+
+# Databases (if you keep local dev db)
+*.sqlite3
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Secrets & local config (VERY important!)
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+config/local.*
+
+# Dependency directories (if you have any other langs)
+vendor/
+.bundle/
+target/              # Rust
+go.mod               # ← usually keep, but sometimes people ignore
+go.sum
+
+# Testing / coverage artifacts
+coverage.xml
+junit.xml
+test-results/
+
+# Additional
+*.pdf
