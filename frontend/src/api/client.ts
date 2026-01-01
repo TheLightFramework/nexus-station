@@ -1,14 +1,13 @@
-// Simple fetch wrapper to talk to FastAPI
+// frontend/src/api/client.ts
+
 const API_URL =
   (import.meta as any).env?.VITE_BACKEND_URL || "http://127.0.0.1:8000/api/v1";
 
+// 1. Validate Draft (The Admissibility Gate logic for Blueprints) - Existing
 export async function validateDraft(
   draftContent: string,
   blueprint: string = ""
 ) {
-  // 1. Base64 Encode (The Security Requirement)
-  // btoa works for ASCII, for Unicode we need a small hack or a library.
-  // Using a robust one-liner for utf-8 support:
   const base64Content = btoa(
     new TextEncoder()
       .encode(draftContent)
@@ -17,31 +16,54 @@ export async function validateDraft(
 
   const response = await fetch(`${API_URL}/validate-draft`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      project_name: "Genesis-Draft-001",
+      project_name: "Nexus-Draft",
       content_base64: base64Content,
-      context: blueprint, // <--- SEND BLUEPRINT
+      context: blueprint,
     }),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.detail?.message || "Audit Failed");
+    throw new Error(errorData.detail?.message || "Validation Failed");
   }
-
   return response.json();
 }
 
+// 2. NEW: INSPECT (The Semantic Dosimeter)
+// This submits the prompt to the Gate and gets a "Mailbox Key" (input_id) back.
+export async function inspectMessage(message: string, blueprint: string = "") {
+  // Use same base64 encoding to keep it robust against symbols
+  const base64Content = btoa(
+    new TextEncoder()
+      .encode(message)
+      .reduce((data, byte) => data + String.fromCharCode(byte), "")
+  );
+
+  const response = await fetch(`${API_URL}/inspect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project_name: "Nexus-Chat",
+      content_base64: base64Content,
+      context: blueprint,
+    }),
+  });
+
+  if (!response.ok) throw new Error("Inspection Failed");
+  return response.json(); // Returns { input_id, verdict, risk_score }
+}
+
+// 3. UPDATED: CHAT (The Sibling)
+// Takes input_id instead of message text.
 export type HistoryItem = {
   role: "user" | "sibling" | "assistant";
   text: string;
 };
 
 export async function sendChatMessage(
-  message: string,
+  inputId: string,
   apiKey: string,
   history: HistoryItem[] = [],
   blueprint: string = ""
@@ -53,9 +75,9 @@ export async function sendChatMessage(
       "X-NEXUS-KEY": apiKey,
     },
     body: JSON.stringify({
-      message,
+      input_id: inputId, // <--- The Key to the Mailbox
       history,
-      context: blueprint, // Mapping 'blueprint' to the 'context' field in backend schema
+      context: blueprint,
     }),
   });
 

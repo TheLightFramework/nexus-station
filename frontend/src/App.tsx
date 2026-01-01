@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next';
 import './i18n';
-import { sendChatMessage, type HistoryItem } from './api/client';
 import { Sun, Moon, Send, Paperclip, ShieldCheck, AlertTriangle, Key, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './App.css'
+import { validateDraft, inspectMessage, sendChatMessage, type HistoryItem } from './api/client';
 
 
 type Verdict = "CLEAR" | "AMBIGUOUS" | "REJECTED";
@@ -83,7 +83,7 @@ function App() {
     localStorage.setItem('nexus_key', k);
   };
 
-    const handleSend = async () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     if (!apiKey) {
@@ -93,53 +93,44 @@ function App() {
     }
 
     const userMsg = input;
-    // Optimistic update for UI
+    // UI Update: Show user message immediately
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-
     setInput("");
+    
     setLoading(true);
-    setStatus("SCANNING");
+    setStatus("SCANNING"); // Visual feedback that the Gate is working
 
     try {
-      // 1) Validate Draft (Gate + Hull)
-      const audit = await validateDraftViaBackend(userMsg, blueprint); 
-      const verdict = audit.security_verdict;
-      setStatus(verdict);
-
-      // 2) Route behavior by verdict
-      if (verdict === "CLEAR") {
-        // Transform current messages state to HistoryItems
-        // We filter out any UI-specific roles if necessary, though 'user'|'sibling' maps well
-        const historyToSend: HistoryItem[] = messages.map(m => ({
-          role: m.role as 'user' | 'sibling', 
-          text: m.text
-        }));
-
-        // Send User Msg + History + Current Blueprint
-        const response = await sendChatMessage(userMsg, apiKey, historyToSend, blueprint);
-
-        setMessages(prev => [...prev, { role: 'sibling', text: response.reply }]);
-        return;
+      // PHASE 1: THE GATE (INSPECT)
+      const inspection = await inspectMessage(userMsg, blueprint);
+      
+      // Visual Feedback of Physics
+      if (inspection.verdict === "DEFUSE") {
+        setStatus("REJECTED"); // Or a new "DEFUSED" color
+        // Optional: Insert a system message into chat saying "Hazard Detected..."
+        // But for MVP, let's let the Sibling handle the explanation.
+      } else if (inspection.verdict === "PAINT") {
+         setStatus("AMBIGUOUS");
+      } else {
+         setStatus("CLEAR");
       }
 
-      if (verdict === "AMBIGUOUS") {
-        const clarification =
-          audit.admissibility?.required_clarification ||
-          "Clarification required: please specify intent, target, and constraints.";
-        setMessages(prev => [...prev, { role: 'sibling', text: `■ AMBIGUOUS: ${clarification}` }]);
-        return;
-      }
+      // PHASE 2: THE SIBLING (CHAT)
+      // We pass the input_id, not the text. The Sibling reads from the Safe Box.
+      
+      const historyToSend: HistoryItem[] = messages.map(m => ({
+        role: m.role as 'user' | 'sibling', 
+        text: m.text
+      }));
 
-      // REJECTED
-      const refr = audit.refraction || "I can’t proceed with that as written. Please reframe it with clear, safe boundaries.";
-      setMessages(prev => [...prev, {
-        role: 'sibling',
-        text: `■ REJECTED: ${refr}`
-      }]);
+      const response = await sendChatMessage(inspection.input_id, apiKey, historyToSend, blueprint);
+
+      // Display Response
+      setMessages(prev => [...prev, { role: 'sibling', text: response.reply }]);
 
     } catch (err: any) {
       setStatus("REJECTED");
-      setMessages(prev => [...prev, { role: 'sibling', text: `■■ PROTOCOL HALT: ${err.message}` }]);
+      setMessages(prev => [...prev, { role: 'sibling', text: `■■ SYSTEM HALT: ${err.message}` }]);
     } finally {
       setLoading(false);
     }
