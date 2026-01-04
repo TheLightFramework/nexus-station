@@ -6,7 +6,7 @@ const resources = {
   en: {
     translation: {
       welcome: "Nexus Station",
-      subtitle: "// SYSTEM: ONLINE // MODE: GENESIS",
+      subtitle: "// SYSTEM: ONLINE // MODE: ACTIVATED",
       draft_placeholder: "Describe your vision...",
       scan_btn: "RUN SECURITY SCAN",
       light_meter: "Light Meter",
