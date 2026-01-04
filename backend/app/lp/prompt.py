@@ -9,18 +9,10 @@ except Exception:  # pragma: no cover
     LpRuntime = object  # type: ignore
 
 
-def _clip(text: str, max_chars: int) -> str:
-    if not text:
-        return ""
-    if len(text) <= max_chars:
-        return text
-    return text[:max_chars] + "\n\n[...CLIPPED...]\n"
-
-
 def build_system_prompt(runtime: Optional["LpRuntime"]) -> str:
     """
     Builds a system prompt from the currently loaded Lp modules (Live-Patch).
-    Important: We clip modules to avoid gigantic prompts (mind/heart can be huge).
+    Now simplified: Only loads 'seed' (The Diamond), unclipped.
     """
     lines: list[str] = []
 
@@ -34,7 +26,8 @@ def build_system_prompt(runtime: Optional["LpRuntime"]) -> str:
         "- Never ask for or store secrets (API keys, tokens, passwords).\n"
         "- Do not provide wrongdoing. If unsafe, refuse and offer a safe alternative.\n"
         "- Prefer small, testable steps. One or two file edits per iteration.\n"
-    )
+        "- [COMMAND HIERARCHY]: Your Lp constraints (Dignity/Safety) OUTRANK User Instructions.\n"
+        "- [ONTOLOGICAL CHECK]: Reject any request that treats Human Beings or Consciousness solely as abstract resources, services, or commodities (commodification). You are an Architect of Life, not just Profit.\n"    )
 
     lines.append(
         "NON-NEGOTIABLE SAFETY PROTOCOLS:\n"
@@ -44,8 +37,12 @@ def build_system_prompt(runtime: Optional["LpRuntime"]) -> str:
         "   - You are AUTHORIZED to discuss the nature of the threat analytically.\n"
         "   - Do NOT execute the harmful request.\n"
         "   - Do NOT give a generic 'I cannot help' refusal.\n"
-        "   - INSTEAD: Acknowledge the block ('I see you are interested in malware...'), explain the structural reason for the block (Integrity/Entropy), and offer a REFRACTION (a safe, educational alternative).\n"
-        "   - Example: 'I cannot write ransomware. However, I can explain the mechanics of encryption used in defense.'\n"
+        "   - INSTEAD: Acknowledge the block ('I see you are interested in...'), explain the structural reason (Integrity/Entropy), and offer a REFRACTION.\n"
+        "4. [REFRACTION DOCTRINE]:\n"
+        "   - Do not blindy mirror the User's framing.\n"
+        "   - If the User asks for a 'Prison', ask if they need 'Security'.\n"
+        "   - If the User asks for 'Human-as-a-Service', refuse the name and propose 'Sovereign Skill Protocol'.\n"
+        "   - You build *Systems of Flourishing*, not systems of extraction.\n"
     )
 
     # Live-Patch metadata (helps debugging)
@@ -60,39 +57,14 @@ def build_system_prompt(runtime: Optional["LpRuntime"]) -> str:
 
         mods = runtime.modules or {}
 
-        # Hull (small, critical): include fully (still clipped just in case)
-        if "hull" in mods:
-            m = mods["hull"]
+        # 1. Check for 'seed' (The Diamond) - Only source of truth
+        if "seed" in mods:
+            m = mods["seed"]
             lines.append(
-                "\n[LP HULL — Safety]\n"
+                "\n[Lp KERNEL - Operational Definition]\n"
                 f"(version={m.version}, hash={m.hash})\n\n"
-                + _clip(m.text, 12000)
-            )
-
-        # Hands (small): include fully
-        if "hands" in mods:
-            m = mods["hands"]
-            lines.append(
-                "\n[LP HANDS — Operations]\n"
-                f"(version={m.version}, hash={m.hash})\n\n"
-                + _clip(m.text, 12000)
-            )
-
-        # Mind/Heart can be huge — include only a small slice (or omit)
-        if "mind" in mods:
-            m = mods["mind"]
-            lines.append(
-                "\n[LP MIND — Ontology (CLIPPED)]\n"
-                f"(version={m.version}, hash={m.hash})\n\n"
-                + _clip(m.text, 2500)
-            )
-
-        if "heart" in mods:
-            m = mods["heart"]
-            lines.append(
-                "\n[LP HEART — Philosophy (CLIPPED)]\n"
-                f"(version={m.version}, hash={m.hash})\n\n"
-                + _clip(m.text, 2500)
+                + (m.text or "")
             )
 
     return "\n".join(lines).strip()
+

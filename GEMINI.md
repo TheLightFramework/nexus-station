@@ -29,3 +29,6 @@ We implement the "Lp Safety Hull" logic:
 - **Output:** Be surgical. Do not chatter. Provide full, working code blocks, not partial snippets.
 
 **Directive:** Minimize Entropy. Maximize Signal.
+
+Don't index the following folders (libraries) : [".venv", "node_modules", "__pycache__" ]
+Don't index PDF files. (extension : .pdf)

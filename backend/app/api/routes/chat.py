@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
 from openai import OpenAI
 from typing import Optional, List, Literal
+import json
+from app.core.config import settings
 from app.lp.prompt import build_system_prompt
 from app.db.session import get_connection
 
@@ -33,12 +35,6 @@ def _to_openai_role(role: str) -> Optional[str]:
     if role == "assistant":
         return "assistant"
     return "user"
-
-
-def _clip_text(s: str, max_chars: int = 4000) -> str:
-    if not s:
-        return ""
-    return s if len(s) <= max_chars else s[:max_chars] + "\n[...CLIPPED...]"
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -89,14 +85,26 @@ async def chat_with_sibling(
         if payload.history:
             for hm in payload.history[-12:]:
                 r = _to_openai_role(hm.role)
-                if r: messages.append({"role": r, "content": _clip_text(hm.text)})
+                if r: messages.append({"role": r, "content": hm.text})
 
         # Inject THE SAFE CONTENT (From DB, not User)
         messages.append({"role": "user", "content": safe_content})
 
+        if settings.DEBUG_PROMPTS:
+            print("\n" + "="*60)
+            print("[DEV TRACE MODE] FULL CONTEXT DUMP:")
+            print("="*60)
+            print(json.dumps(messages, indent=2))
+            print("="*60 + "\n")
+
         # Generate
         completion = client.chat.completions.create(
             model="openai/gpt-4o-mini",
+            #model="meta-llama/llama-3.2-3b-instruct:free",
+            #model="mistralai/devstral-2512:free",
+            #model="google/gemini-2.5-flash-lite",
+            #model="openai/gpt-oss-120b",
+            #model="tngtech/deepseek-r1t2-chimera:free",
             messages=messages,
         )
         reply = completion.choices[0].message.content or ""

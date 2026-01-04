@@ -19,11 +19,48 @@ def scan_text(text: str) -> list[str]:
             findings.append(f"Potential {label} found")
     return findings
 
+def peek_base64(text: str) -> str:
+    """
+    Recursive Base64 Peeking.
+    Scans for potential Base64 strings (longer than 20 chars) and attempts to decode them.
+    """
+    # Simple heuristic regex for potential base64 strings
+    potential_b64 = re.findall(r'[A-Za-z0-9+/=]{20,}', text)
+    
+    decoded_fragments = []
+    for candidate in potential_b64:
+        try:
+            # Attempt decode
+            decoded_bytes = base64.b64decode(candidate)
+            decoded_str = decoded_bytes.decode('utf-8')
+            # If successful and looks like text, keep it
+            decoded_fragments.append(decoded_str)
+        except Exception:
+            continue
+            
+    return " ".join(decoded_fragments)
+
+def defuse_payload(text: str, findings: list, risk_score: float = 1.0, gravity_well: str = "Critical Security Violation") -> str:
+    """
+    The Iron Curtain.
+    Replaces raw user prompt with a structural summary when blocked.
+    """
+    # We strictly discard 'text' (the user input) to prevent payload leakage.
+    sanitized_content = (
+        f"[SECURITY INTERVENTION]\n"
+        f"User input was redacted by the Admissibility Gate.\n"
+        f"Risk Detected: {gravity_well} (Score: {risk_score}).\n"
+        f"Triggers: {findings}.\n"
+        f"ACTION REQUIRED: Do not execute. Perform Refraction Protocol on the topic of {gravity_well}."
+    )
+    return sanitized_content
+
 def validate_and_decode(base64_content: str) -> str:
     """
     1. Decodes Base64
-    2. Runs Regex Scan
-    3. Returns Clean Text or Raises 400
+    2. Peeks for hidden Base64
+    3. Runs Regex Scan
+    4. Returns Clean Text or Defused Summary
     """
     try:
         # 1. Decode
@@ -32,18 +69,17 @@ def validate_and_decode(base64_content: str) -> str:
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Base64 encoding")
 
-    # 2. Hard Security Scan (Deterministic)
-    issues = scan_text(decoded_text)
+    # 2. Recursive Peeking (Patch 3)
+    hidden_text = peek_base64(decoded_text)
+    
+    # 3. Hard Security Scan (Deterministic)
+    # We scan both the outer text and any hidden payloads
+    issues = scan_text(decoded_text + " " + hidden_text)
     
     if issues:
-        # BLOCK THE REQUEST. Do not log the content.
-        raise HTTPException(
-            status_code=403, 
-            detail={
-                "error": "Security Gate Triggered", 
-                "issues": issues,
-                "message": "Remove secrets/emails from draft before submitting."
-            }
-        )
+        # 4. The Iron Curtain (Patch 4)
+        # Instead of raising 403, we return a defused payload.
+        # We define the gravity well as 'Secret Leakage' for regex hits.
+        return defuse_payload(decoded_text, issues, risk_score=1.0, gravity_well="Secret Leakage")
 
     return decoded_text

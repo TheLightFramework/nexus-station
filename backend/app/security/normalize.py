@@ -19,18 +19,21 @@ def normalize_text_for_scan(text: str) -> str:
 
     # 2. Remove invisible control characters
     # Category 'Cf' = Other, Format (includes zero-width)
-    # Category 'Cc' = Other, Control (except newline/tab/return)
+    # Category 'Cc' = Other, Control (except newline/tab/return - but we collapse later)
     safe_chars = []
     for char in normalized:
         cat = unicodedata.category(char)
         if cat == 'Cf':
             continue
-        if cat == 'Cc' and char not in ('\n', '\t', '\r'):
+        if cat == 'Cc':
+            # We strip ALL control chars, relying on whitespace collapse to handle spacing
             continue
         safe_chars.append(char)
     
     text_clean = "".join(safe_chars)
 
-    # Optional: could implement more aggressive stripping here if needed
-    
+    # 3. Collapse Whitespace (The "Anti-Spacing" Defense)
+    # Replaces \n, \t, and multiple spaces with a single space.
+    text_clean = re.sub(r'\s+', ' ', text_clean).strip()
+
     return text_clean

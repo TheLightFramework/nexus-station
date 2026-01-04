@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     
     # Security Constraints
     MAX_DRAFT_SIZE_BYTES: int = 100 * 1024  # 100KB Limit for Drafts
+    DEBUG_PROMPTS: bool = False
     
     # CORS (For Local React Dev)
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:5173"]
@@ -18,5 +19,6 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
+        env_file = ".env"
 
 settings = Settings()

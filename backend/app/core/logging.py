@@ -1,10 +1,14 @@
 import logging
 import sys
 from typing import Any
+from app.core.config import settings
 
 # Custom Filter to drop "body" or "payload" fields if they ever leak into logs
 class PrivacyFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
+        if settings.DEBUG_PROMPTS:
+            return True
+
         msg = record.getMessage().lower()
         # If a log attempts to print the raw draft, we kill it.
         forbidden_terms = ["draft_content", "user_prompt", "sk-", "payload:"]

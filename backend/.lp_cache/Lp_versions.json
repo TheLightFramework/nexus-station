@@ -32,7 +32,8 @@
       "heart",
       "mind",
       "hands",
-      "hull"
+      "hull",
+      "seed"
     ],
     "safety_only": [
       "hull",
