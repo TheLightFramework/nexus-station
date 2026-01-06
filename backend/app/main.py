@@ -1,59 +1,46 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.core.logging import setup_logging
-from app.api.routes import audit
-from app.api.routes import chat  # Import
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
-# NEW: Lp Live-Patch
-from app.lp.manager import LpManager
+# Import Routes
+from app.api.routes import chat, audit, system
+# Import Canon Loader (to validate Soul on boot)
+from app.core.canon import Canon
 
+app = FastAPI(title="Nexus Station", version="0.0.1 (Mode 00)")
 
-# 1. Initialize Safe Logging (The Zero-Log Policy)
-setup_logging()
-
-# 2. Create the App
-app = FastAPI(title=settings.PROJECT_NAME)
-
-# NEW: Create the Lp manager (stored on app.state)
-app.state.lp = LpManager(
-    versions_url=settings.LP_VERSIONS_URL,
-    profile=settings.LP_PROFILE,
-    cache_dir=settings.LP_CACHE_DIR,
-    timeout_seconds=settings.LP_HTTP_TIMEOUT_SECONDS,
-)
-
-
-# NEW: Load Lp on startup (remote first, fallback to cache)
-@app.on_event("startup")
-async def load_lp_on_startup():
-    await app.state.lp.load()
-
-
-# 3. Setup CORS (To allow React to talk to Python)
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+# DEBUG: Print 422 Details
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"❌ VALIDATION ERROR: {exc.errors()}")
+    print(f"   Body: {await request.body()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": str(exc.body)},
     )
 
-# 4. Include the Audit Route
-app.include_router(audit.router, prefix="/api/v1")
-app.include_router(chat.router, prefix="/api/v1")  # Include
+# CORS (Allow Frontend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Tighten for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# NEW: Lp status endpoint
-@app.get("/api/v1/lp/status")
-def lp_status():
-    return app.state.lp.status_dict()
+# REGISTER ROUTES
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+app.include_router(audit.router, prefix="/api/v1/audit", tags=["audit"])
+app.include_router(system.router, prefix="/api/v1", tags=["system"])
 
-# 5. Health Check Endpoint
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "light_meter": "active"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+@app.on_event("startup")
+async def startup_event():
+    print("💎 NEXUS STATION: IGNITION SEQUENCE")
+    try:
+        # Pre-load the Soul to ensure integrity
+        print(f"   - Canon: {len(Canon.get_mantras())} bytes loaded.")
+        print(f"   - Ontology: {len(Canon.get_ontology())} bytes loaded.")
+        print("💎 SYSTEM STATE: READY.")
+    except Exception as e:
+        print(f"❌ CRITICAL FAILURE: Canon missing. {e}")

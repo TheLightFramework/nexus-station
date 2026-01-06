@@ -28,3 +28,11 @@ CREATE TABLE IF NOT EXISTS sibling_responses (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (payload_id) REFERENCES safe_payloads (id)
 );
+
+-- 4. The Pending Inbox (Transient Storage for Inspection -> Reply)
+CREATE TABLE IF NOT EXISTS pending_inbox (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    refraction_context TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

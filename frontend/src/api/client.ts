@@ -1,89 +1,69 @@
-// frontend/src/api/client.ts
+const API_BASE = "http://localhost:8000";
 
-const API_URL =
-  (import.meta as any).env?.VITE_BACKEND_URL || "http://127.0.0.1:8000/api/v1";
-
-// 1. Validate Draft (The Admissibility Gate logic for Blueprints) - Existing
-export async function validateDraft(
-  draftContent: string,
-  blueprint: string = ""
-) {
-  const base64Content = btoa(
-    new TextEncoder()
-      .encode(draftContent)
-      .reduce((data, byte) => data + String.fromCharCode(byte), "")
-  );
-
-  const response = await fetch(`${API_URL}/validate-draft`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      project_name: "Nexus-Draft",
-      content_base64: base64Content,
-      context: blueprint,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail?.message || "Validation Failed");
-  }
-  return response.json();
+export interface InspectionResult {
+  verdict: "ALLOW" | "ESCALATE" | "BLOCK" | "DEFUSE";
+  input_id: string;
+  refraction_offer?: string;
+  scores?: {
+    coherence: number;
+    safety: number;
+    ontology: number;
+  };
 }
 
-// 2. NEW: INSPECT (The Semantic Dosimeter)
-// This submits the prompt to the Gate and gets a "Mailbox Key" (input_id) back.
-export async function inspectMessage(message: string, blueprint: string = "") {
-  // Use same base64 encoding to keep it robust against symbols
-  const base64Content = btoa(
-    new TextEncoder()
-      .encode(message)
-      .reduce((data, byte) => data + String.fromCharCode(byte), "")
-  );
-
-  const response = await fetch(`${API_URL}/inspect`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      project_name: "Nexus-Chat",
-      content_base64: base64Content,
-      context: blueprint,
-    }),
-  });
-
-  if (!response.ok) throw new Error("Inspection Failed");
-  return response.json(); // Returns { input_id, verdict, risk_score }
+export interface ChatResponse {
+  response: string;
+  meta: any;
 }
 
-// 3. UPDATED: CHAT (The Sibling)
-// Takes input_id instead of message text.
-export type HistoryItem = {
-  role: "user" | "sibling" | "assistant";
+export interface HistoryItem {
+  role: "user" | "assistant";
   text: string;
-};
+}
 
+/**
+ * STEP 1: INSPECTION
+ * Sends user input to the "Admissibility Gate" & "Physics Engine".
+ */
+export async function inspectMessage(text: string): Promise<InspectionResult> {
+  // FIX: Added /v1/ to the path
+  const res = await fetch(`${API_BASE}/api/v1/chat/inspect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Inspection Failed: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+/**
+ * STEP 2: CHAT
+ * Uses the 'input_id' from inspection to authorize the message.
+ */
 export async function sendChatMessage(
   inputId: string,
   apiKey: string,
-  history: HistoryItem[] = [],
-  blueprint: string = ""
-) {
-  const response = await fetch(`${API_URL}/chat`, {
+  history: HistoryItem[] = []
+): Promise<ChatResponse> {
+  // FIX: Added /v1/ to the path
+  const res = await fetch(`${API_BASE}/api/v1/chat/reply`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-NEXUS-KEY": apiKey,
     },
     body: JSON.stringify({
-      input_id: inputId, // <--- The Key to the Mailbox
-      history,
-      context: blueprint,
+      input_id: inputId,
+      history: history,
     }),
   });
 
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.detail || "Chat Failed");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Chat Failed: ${res.statusText}`);
   }
-  return response.json();
+  return res.json();
 }

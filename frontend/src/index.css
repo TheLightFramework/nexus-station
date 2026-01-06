@@ -1,348 +1,93 @@
-/* 1. GLOBAL RESET & VARIABLES */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+@import "tailwindcss";
 
 :root {
-  /* COLORS - DARK (Default) */
-  --bg-app: #0a0a0b; /* Fond profond */
-  --bg-panel: #18181b; /* Panneaux */
-  --text-main: #e2e8f0;
-  --text-dim: #94a3b8;
-  --accent: #06b6d4; /* Cyan */
-  --accent-glow: rgba(6, 182, 212, 0.2);
-  --border: rgba(255, 255, 255, 0.1);
-
-  --bubble-user: #27272a;
-  --bubble-sibling: #0c0c0c;
-
-  /* SIZES */
-  --sidebar-width: 80px;
-  --panel-width: 350px;
+  /* STABLE VOID PALETTE v2 */
+  --bg-void: #030706;
+  --bg-panel: rgba(6, 75, 60, 0.05);
+  --color-primary: #10b981; /* Emerald-500 */
+  --color-accent: #06b6d4; /* Cyan-500 */
+  --color-danger: #ef4444; /* Red-500 */
+  --color-warning: #f59e0b; /* Amber-500 */
 }
 
-[data-theme="light"] {
-  /* COLORS - LIGHT */
-  --bg-app: #f8fafc;
-  --bg-panel: #ffffff;
-  --text-main: #0f172a;
-  --text-dim: #64748b;
-  --accent: #0284c7;
-  --accent-glow: rgba(2, 132, 199, 0.1);
-  --border: #e2e8f0;
-  --bubble-user: #ffffff;
-  --bubble-sibling: #f1f5f9;
-}
-
-/* 2. STYLE DES SCROLLBARS */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-dim);
-}
-
-/* 3. STRUCTURE DE L'APPLICATION (Full Screen) */
 body {
-  margin: 0;
-  padding: 0;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden; /* Vital */
-  background-color: var(--bg-app); /* Fix du fond blanc */
-  color: var(--text-main);
-  font-family: "Inter", system-ui, sans-serif;
-  line-height: 1.5;
-  text-align: left;
+  background-color: var(--bg-void);
+  background-image: radial-gradient(
+      circle at 50% 0%,
+      rgba(16, 185, 129, 0.15),
+      transparent 40%
+    ),
+    radial-gradient(circle at 0% 100%, rgba(6, 182, 212, 0.1), transparent 30%);
+  color: #e5e7eb;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  overflow: hidden; /* App handles scroll */
 }
 
 #root {
   width: 100%;
   height: 100%;
-  padding: 0; /* Suppression du padding qui rognait */
-  margin: 0;
-  max-width: none; /* Suppression de la limite de largeur */
 }
 
-/* 4. GRILLE LAYOUT */
-.layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--panel-width);
-  height: 100%;
-  width: 100%;
-  background: var(--bg-app);
-  overflow: hidden;
-}
-
-@media (max-width: 1200px) {
-  .layout {
-    grid-template-columns: var(--sidebar-width) 1fr;
+/* --- ANIMATIONS --- */
+@keyframes message-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
   }
-  .artifact-zone {
-    display: none;
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-/* 5. COMPONENTS */
-
-/* Common Panel Style */
-.panel {
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border);
+.animate-message-pop {
+  animation: message-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Sidebar (Left) */
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1.5rem 0;
-  gap: 2rem;
-  z-index: 10;
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
 }
 
-.brand {
-  font-weight: 900;
-  font-size: 0.8rem;
-  letter-spacing: 0.1em;
-  color: var(--accent);
-  writing-mode: vertical-rl; /* Stylé: texte vertical */
-  text-orientation: mixed;
-  transform: rotate(180deg);
+.bg-scanlines {
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(16, 185, 129, 0.02) 50%
+  );
+  background-size: 100% 4px;
 }
 
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
+/* --- UTILITIES --- */
+@layer utilities {
+  /* Glass Panel - The standard container */
+  .glass-panel {
+    @apply bg-black/40 backdrop-blur-xl border border-white/5 shadow-xl;
+  }
 
-/* Chat Zone (Center) */
-.chat-zone {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0; /* Fix flexbox scroll */
-  position: relative;
-}
+  /* Input Field Glass */
+  .glass-input {
+    @apply bg-black/60 backdrop-blur-md border border-emerald-500/20 text-emerald-50 placeholder:text-emerald-500/30 transition-all duration-300;
+  }
+  .glass-input:focus {
+    @apply border-emerald-500/60 ring-1 ring-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)];
+  }
 
-.messages-scroll {
-  flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  scroll-behavior: smooth;
-}
-
-.message {
-  display: flex;
-  width: 100%;
-}
-.message.user {
-  justify-content: flex-end;
-}
-.message.sibling {
-  justify-content: flex-start;
-}
-
-.bubble {
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  max-width: 75%;
-  background: var(--bubble-sibling);
-  border: 1px solid var(--border);
-  white-space: pre-wrap;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-.message.user .bubble {
-  background: var(--bubble-user);
-  border-color: var(--accent);
-  color: var(--text-main);
-  border-bottom-right-radius: 2px;
-}
-.message.sibling .bubble {
-  border-bottom-left-radius: 2px;
-}
-
-/* Input Area (Bottom) */
-.input-deck {
-  padding: 1.5rem;
-  background: var(--bg-panel);
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 1rem;
-  align-items: flex-end;
-}
-
-.input-deck textarea {
-  flex: 1;
-  background: var(--bg-app);
-  border: 1px solid var(--border);
-  color: var(--text-main);
-  border-radius: 8px;
-  padding: 1rem;
-  min-height: 50px;
-  max-height: 150px;
-  resize: none;
-  font-family: inherit;
-  font-size: 0.95rem;
-  transition: all 0.2s;
-}
-.input-deck textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-glow);
-}
-
-/* Artifact Zone (Right) */
-.artifact-zone {
-  border-left: 1px solid var(--border);
-  border-right: none;
-  padding: 2rem;
-  background: var(--bg-panel);
-  overflow-y: auto;
-}
-
-/* Buttons */
-.icon-btn,
-.send-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  padding: 0.6rem;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.2s;
-}
-.icon-btn:hover {
-  color: var(--text-main);
-  background: var(--border);
-}
-.send-btn {
-  background: var(--accent);
-  color: white;
-  padding: 0.8rem;
-  border-radius: 8px;
-}
-.send-btn:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 0 15px var(--accent-glow);
-}
-
-/* Status Indicators */
-.meter-box {
-  margin-top: auto; /* Pousse en bas */
-  text-align: center;
-}
-.indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: 0.7rem;
-  font-weight: bold;
-  margin-top: 0.5rem;
-}
-.indicator.SAFE {
-  color: var(--color-green);
-}
-.indicator.BLOCKED {
-  color: var(--color-red);
-}
-
-/* MARKDOWN STYLES (Prose) */
-.markdown-body {
-  font-size: 0.95rem;
-  line-height: 1;
-  text-align: left;
-}
-
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3 {
-  /* margin-top: 1.5em;
-  margin-bottom: 0.5em; */
-  margin-top: 0;
-  margin-bottom: 0;
-  color: var(--text-main);
-  font-weight: 700;
-}
-
-.markdown-body h1 {
-  font-size: 1.5em;
-  color: var(--accent);
-  border-bottom: 1px solid var(--border);
-  /* padding-bottom: 0.3em; */
-  padding-bottom: 0;
-}
-.markdown-body h2 {
-  font-size: 1.3em;
-  color: var(--color-gold);
-}
-.markdown-body h3 {
-  font-size: 1.1em;
-}
-
-.markdown-body p {
-  /* margin-bottom: 1em; */
-  margin-bottom: 0;
-}
-
-.markdown-body ul,
-.markdown-body ol {
-  /* padding-left: 1.5em;
-  margin-bottom: 1em; */
-  padding-left: 0;
-  margin-bottom: 0;
-}
-.markdown-body li {
-  margin-bottom: 0;
-}
-
-.markdown-body code {
-  background: rgba(0, 0, 0, 0.3);
-  /* padding: 0.2em 0.4em; */
-  padding: 0;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.9em;
-  color: var(--accent);
-}
-
-.markdown-body pre {
-  background: rgba(0, 0, 0, 0.3);
-  /* padding: 1rem; */
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  overflow-x: auto;
-  /* margin-bottom: 1rem; */
-}
-.markdown-body pre code {
-  background: transparent;
-  padding: 0;
-  color: inherit;
-}
-
-.markdown-body strong {
-  color: var(--text-main);
-  font-weight: 700;
-}
-.markdown-body a {
-  color: var(--accent);
-  text-decoration: underline;
+  /* Scrollbar Styling */
+  .scrollbar-cyber::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-cyber::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-cyber::-webkit-scrollbar-thumb {
+    @apply bg-emerald-900/50 rounded-full;
+  }
+  .scrollbar-cyber::-webkit-scrollbar-thumb:hover {
+    @apply bg-emerald-500/50;
+  }
 }
