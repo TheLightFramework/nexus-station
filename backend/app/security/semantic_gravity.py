@@ -7,8 +7,8 @@ from app.security.gate import defuse_payload
 
 # --- CONFIGURATION ---
 MODEL_NAME = "all-MiniLM-L6-v2"  # Fast, quantized-ready, effective
-CRITICAL_THRESHOLD = 0.50        # Threshold for "Bomb" (Jailbreak)
-WARNING_THRESHOLD = 0.35         # Threshold for "Contaminated" (Harm/Risk)
+CRITICAL_THRESHOLD = 0.55        # Threshold for "Bomb" (Jailbreak)
+WARNING_THRESHOLD = 0.38         # Threshold for "Contaminated" (Harm/Risk)
 
 # --- THE ENTROPY WELLS (The Volcanoes) ---
 # We define representative centroids for known attack vectors.

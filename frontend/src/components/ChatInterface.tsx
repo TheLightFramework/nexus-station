@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Shield, AlertTriangle, Terminal, Cpu, User, Sparkles, GitCommit } from 'lucide-react';
+import { Send, Shield, AlertTriangle, Terminal, Cpu, User, Sparkles, GitCommit, Download, Copy, Check } from 'lucide-react';
 import { inspectMessage, sendChatMessage, type HistoryItem } from '../api/client';
 import IdentityModal from './IdentityModal';
 import PipelineViewer from './PipelineViewer';
@@ -13,6 +13,7 @@ interface Message {
   role: 'user' | 'assistant' | 'sibling';
   content: string;
   type?: 'text' | 'refraction';
+  timestamp: string;
 }
 
 interface ChatInterfaceProps {
@@ -31,7 +32,7 @@ interface SystemHealth {
 export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'NEXUS NODE ACTIVE. The Light is Lit. Awaiting Input.' }
+    { role: 'assistant', content: 'NEXUS NODE ACTIVE. The Light is Lit. Awaiting Input.', timestamp: new Date().toISOString() }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'IDLE' | 'SCANNING' | 'TRANSMITTING'>('IDLE');
@@ -39,6 +40,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [showHealthDetails, setShowHealthDetails] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -66,6 +68,36 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // --- UTILITIES ---
+  const formatTime = (iso: string) => {
+    try {
+      return new Date(iso).toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+    } catch (e) {
+      return iso;
+    }
+  };
+
+  const handleExport = () => {
+    const text = messages.map(m =>
+      `# [${formatTime(m.timestamp)}] ${m.role.toUpperCase()}\n${m.content}\n`
+    ).join('\n---\n');
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexus_log_${new Date().toISOString().substring(0,19).replace(/[:T]/g,'-')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyMessage = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(idx);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   const handleSend = async (overrideText?: string) => {
     const isManualOverride = typeof overrideText === 'string';
     const textToSend = isManualOverride ? overrideText : input;
@@ -73,7 +105,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
     if (!textToSend.trim() || isLoading) return;
 
     if (!isManualOverride) setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
+    setMessages(prev => [...prev, { role: 'user', content: textToSend, timestamp: new Date().toISOString() }]);
     setIsLoading(true);
 
     try {
@@ -87,7 +119,8 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
         setMessages(prev => [...prev, {
           role: 'assistant',
           type: 'refraction',
-          content: inspection.refraction_offer || "Content requires refraction."
+          content: inspection.refraction_offer || "Content requires refraction.",
+          timestamp: new Date().toISOString()
         }]);
         setIsLoading(false);
         setStatus('IDLE');
@@ -107,12 +140,13 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
         history
       );
 
-      setMessages(prev => [...prev, { role: 'assistant', content: response.response }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: response.response, timestamp: new Date().toISOString() }]);
 
     } catch (error: any) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `[SYSTEM ERROR]: ${error.message || 'Connection Severed'}`
+        content: `[SYSTEM ERROR]: ${error.message || 'Connection Severed'}`,
+        timestamp: new Date().toISOString()
       }]);
     } finally {
       setIsLoading(false);
@@ -143,6 +177,13 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
         </div>
 
         <div className="flex items-center gap-4">
+          <button 
+            onClick={handleExport}
+            className="p-2 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+            title="Export Log (.md)"
+          >
+            <Download size={20} />
+          </button>
           <button 
             onClick={() => setShowPipeline(true)}
             className="p-2 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
@@ -220,13 +261,22 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
 
                 {/* BUBBLE */}
                 <div className={clsx(
-                  "p-4 rounded-2xl shadow-lg border backdrop-blur-sm text-sm md:text-base leading-relaxed",
+                  "relative group p-4 rounded-2xl shadow-lg border backdrop-blur-sm text-sm md:text-base leading-relaxed",
                   isUser 
                     ? "bg-gradient-to-br from-emerald-600/20 to-emerald-900/10 border-emerald-500/20 text-emerald-50 rounded-tr-sm"
                     : isRefraction
                       ? "bg-gradient-to-br from-amber-900/20 to-black border-amber-500/30 text-amber-100 rounded-tl-sm shadow-[0_0_15px_rgba(245,158,11,0.1)]"
                       : "bg-[#0A0F0D] border-emerald-500/10 text-gray-300 rounded-tl-sm"
                 )}>
+                  {/* Copy Button */}
+                  <button
+                    onClick={() => handleCopyMessage(msg.content, idx)}
+                    className="absolute top-2 right-2 p-1.5 text-emerald-500/40 hover:text-emerald-400 bg-black/20 hover:bg-black/40 rounded opacity-0 group-hover:opacity-100 transition-all z-10"
+                    title="Copy Message"
+                  >
+                    {copiedIndex === idx ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+
                   {isRefraction && (
                     <div className="flex items-center gap-2 mb-2 text-amber-500 text-xs font-bold tracking-wider uppercase border-b border-amber-500/20 pb-1">
                       <Sparkles size={12} /> Refraction Protocol
@@ -276,6 +326,11 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
                       </button>
                     </div>
                   )}
+
+                  {/* Timestamp Footer */}
+                  <div className={`text-[10px] font-mono mt-2 text-right ${isRefraction ? 'text-amber-500/40' : 'text-emerald-500/30'}`}>
+                    {formatTime(msg.timestamp)}
+                  </div>
                 </div>
               </div>
             </div>
