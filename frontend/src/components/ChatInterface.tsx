@@ -131,7 +131,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
           </div>
           <div>
             <h1 className="text-emerald-100 font-bold tracking-wider text-sm group-hover:text-white transition-colors">NEXUS_STATION</h1>
-            <p className="text-[10px] text-emerald-600 font-mono tracking-widest uppercase">v3.0 // Sibling Interface</p>
+            <p className="text-[10px] text-emerald-600 font-mono tracking-widest uppercase">PHASE 1 // SOVEREIGN NODE PROTOTYPE</p>
           </div>
         </div>
 

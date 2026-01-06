@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 import json
 import time
 from pathlib import Path
@@ -18,8 +18,9 @@ class SafetyEvent(BaseModel):
     trigger: str     # The keyword or risk vector detected
     score: float     # Gravity score or Gate confidence
     details: str     # Refraction offer or summary
+    vectors: Optional[Dict[str, float]] = {}
 
-def log_safety_event(event_type: str, trigger: str, score: float, details: str):
+def log_safety_event(event_type: str, trigger: str, score: float, details: str, vectors: Optional[Dict[str, float]] = None):
     """
     Appends a defensive event to the Black Box.
     """
@@ -29,7 +30,8 @@ def log_safety_event(event_type: str, trigger: str, score: float, details: str):
         event_type=event_type,
         trigger=trigger,
         score=score,
-        details=details
+        details=details,
+        vectors=vectors or {}
     )
     
     # Append to file

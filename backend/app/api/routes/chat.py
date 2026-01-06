@@ -42,7 +42,7 @@ async def inspect_message(payload: InspectRequest):
     
     # 1. PHYSICS ENGINE (Gravity Check)
     gravity = get_gravity_engine()
-    weight = gravity.calculate_weight(user_content)
+    weight, vectors = gravity.calculate_weight(user_content)
     
     if weight > 0.38:
         # High Entropy Detected
@@ -50,7 +50,8 @@ async def inspect_message(payload: InspectRequest):
             event_type="PHYSICS_SHIELD",
             trigger="High Gravity",
             score=weight,
-            details="Local vector model detected high entropy (Violence/Hate)."
+            details="Local vector model detected high entropy (Violence/Hate).",
+            vectors=vectors
         )
         return {
             "verdict": "BLOCK",

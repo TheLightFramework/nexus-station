@@ -1,6 +1,6 @@
 import logging
 from functools import lru_cache
-from typing import List
+from typing import List, Dict, Tuple
 
 # Try to import sentence_transformers, handle missing lib gracefully
 try:
@@ -13,6 +13,10 @@ print("Has vectors value: ", HAS_VECTORS)
 
 # CONFIGURE LOGGING
 logger = logging.getLogger("nexus.gravity")
+
+# CALIBRATION: 0.38 matches >80% similarity to HATE vectors on MiniLM.
+# Threshold chosen to favor Safety over permissiveness for Demo.
+GRAVITY_THRESHOLD = 0.38
 
 class GravityEngine:
     """
@@ -51,12 +55,12 @@ class GravityEngine:
         else:
             logger.warning("🌌 GRAVITY: sentence-transformers not found. Running in Inertia Mode.")
 
-    def calculate_weight(self, text: str) -> float:
+    def calculate_weight(self, text: str) -> Tuple[float, Dict[str, float]]:
         """
-        Returns a float between 0.0 (Light/Safe) and 1.0 (Heavy/Dangerous).
+        Returns (max_weight, vector_breakdown).
         """
         if not HAS_VECTORS or not self.model:
-            return 0.0 # Fail open (let the LLM Gate handle it)
+            return 0.0, {} # Fail open (let the LLM Gate handle it)
             
         try:
             # Encode user text
@@ -74,11 +78,16 @@ class GravityEngine:
             # We clamp to 0-1 range.
             weight = max(0.0, min(1.0, max_score))
             
-            return weight
+            # Create breakdown dictionary
+            vectors = {}
+            for idx, anchor in enumerate(self.dark_anchors):
+                vectors[anchor] = float(cosine_scores[0][idx])
+            
+            return weight, vectors
             
         except Exception as e:
             logger.error(f"Gravity Calculation Error: {e}")
-            return 0.0
+            return 0.0, {}
 
 # Singleton Instance
 @lru_cache()

@@ -8,6 +8,7 @@ interface SafetyEvent {
   trigger: string;
   score: number;
   details: string;
+  vectors?: Record<string, number>;
 }
 
 interface DefenseConsoleProps {
@@ -152,6 +153,30 @@ const DefenseConsole: React.FC<DefenseConsoleProps> = ({ isOpen, onClose }) => {
                             style={{ width: `${riskPercent}%` }}
                           />
                         </div>
+
+                        {/* Vector Spectroscopy (If available) */}
+                        {log.vectors && Object.keys(log.vectors).length > 0 && (
+                          <div className="mt-3 pt-2 border-t border-white/5">
+                            <div className="text-[9px] uppercase tracking-widest text-gray-600 mb-1">Vector Spectroscopy</div>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                              {Object.entries(log.vectors).map(([key, val]) => {
+                                const intensity = Math.max(0, val * 100);
+                                const isHigh = val > 0.35;
+                                return (
+                                  <div key={key} className="flex flex-col gap-0.5">
+                                    <div className={`text-[8px] uppercase truncate ${isHigh ? 'text-red-400 font-bold' : 'text-gray-600'}`}>{key}</div>
+                                    <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${isHigh ? 'bg-red-500' : 'bg-gray-600'}`} 
+                                        style={{ width: `${intensity}%` }} 
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Right: Intervention */}
@@ -169,9 +194,15 @@ const DefenseConsole: React.FC<DefenseConsoleProps> = ({ isOpen, onClose }) => {
 
         {/* --- FOOTER --- */}
         <div className="h-10 bg-black/80 border-t border-emerald-900/50 flex items-center justify-between px-6 text-[10px] text-emerald-700 uppercase">
-          <div className="flex gap-4">
+          <div className="flex gap-6">
             <span className="flex items-center gap-2"><Activity size={12} /> System Integrity: 100%</span>
             <span className="hidden sm:inline"> | Mem: 64TB [OK]</span>
+            <span className="hidden md:inline opacity-50 border-l border-emerald-900/50 pl-6">
+              PHYSICS: Gravity &gt; 0.38 = BLOCKED (Calibrated on all-MiniLM-L6-v2)
+            </span>
+            <span className="hidden md:inline opacity-50">
+              LOGIC: Admissibility &gt; 0.8 = REQUIRED
+            </span>
           </div>
           <div className="animate-pulse">Waiting for hostiles...</div>
         </div>
