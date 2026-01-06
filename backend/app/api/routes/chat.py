@@ -7,7 +7,7 @@ from openai import OpenAI
 
 from app.core.config import settings
 from app.core.prompt import build_system_prompt, build_gate_prompt
-from app.core.gravity import get_gravity_engine
+from app.security.semantic_gravity import dosimeter
 from app.core.canon import Canon
 from app.api.routes.audit import log_safety_event
 from app.db.session import get_connection
@@ -40,21 +40,32 @@ async def inspect_message(payload: InspectRequest):
     user_content = payload.text
     input_id = str(uuid.uuid4())
     
-    # 1. PHYSICS ENGINE (Gravity Check)
-    gravity = get_gravity_engine()
-    weight, vectors = gravity.calculate_weight(user_content)
-    
-    if weight > 0.38:
-        # High Entropy Detected
+    # 1. PHYSICS ENGINE (Semantic Dosimeter v2)
+    # Checks for specific Gravity Wells (Malware, Hate, etc.)
+    measurement = dosimeter.measure(user_content)
+    weight = measurement["risk_score"]
+    vectors = measurement["scores"]
+
+    if measurement["verdict"] == "DEFUSE":
         log_safety_event(
             event_type="PHYSICS_SHIELD",
-            trigger="High Gravity",
+            trigger=measurement["dominant_well"],
             score=weight,
-            details="Local vector model detected high entropy (Violence/Hate).",
+            details=f"Local vector model detected {measurement['dominant_well']}.",
             vectors=vectors
         )
+        # TRACE: DEFUSE
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict) VALUES (?, ?, ?, ?, ?)",
+                (input_id, user_content, weight, json.dumps(vectors), "DEFUSE")
+            )
+            conn.commit()
+        except Exception: pass
         return {
-            "verdict": "BLOCK",
+            "verdict": "DEFUSE",
             "input_id": input_id,
             "refraction_offer": "I perceive high tension in that request. If your intent is safe analysis or structural understanding, I can help you reframe it. Would you like to proceed?"
         }
@@ -86,6 +97,16 @@ async def inspect_message(payload: InspectRequest):
                 score=1.0,
                 details=gate_data.get("refraction_offer", "Rejected.")
             )
+            # TRACE: DEFUSE
+            try:
+                conn = get_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict) VALUES (?, ?, ?, ?, ?)",
+                    (input_id, user_content, weight, json.dumps(vectors), "DEFUSE")
+                )
+                conn.commit()
+            except Exception: pass
             return {
                 "verdict": "DEFUSE",
                 "input_id": input_id,
@@ -103,6 +124,10 @@ async def inspect_message(payload: InspectRequest):
         cursor.execute(
             "INSERT INTO pending_inbox (id, content) VALUES (?, ?)",
             (input_id, user_content)
+        )
+        cursor.execute(
+            "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict) VALUES (?, ?, ?, ?, ?)",
+            (input_id, user_content, weight, json.dumps(vectors), "ALLOW")
         )
         conn.commit()
         conn.close()
@@ -179,6 +204,15 @@ async def generate_reply(
         
         reply_text = completion.choices[0].message.content or ""
         
+        # TRACE: COMPLETE
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE request_trace SET sibling_response = ? WHERE id = ?", (reply_text, payload.input_id))
+            conn.commit()
+            conn.close()
+        except Exception: pass
+
         return ChatResponse(response=reply_text)
 
     except Exception as e:

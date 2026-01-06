@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Shield, AlertTriangle, Terminal, Cpu, User, Sparkles } from 'lucide-react';
+import { Send, Shield, AlertTriangle, Terminal, Cpu, User, Sparkles, GitCommit } from 'lucide-react';
 import { inspectMessage, sendChatMessage, type HistoryItem } from '../api/client';
 import IdentityModal from './IdentityModal';
+import PipelineViewer from './PipelineViewer';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // Inline utility for class merging if you don't have clsx/tailwind-merge set up yet
 const clsx = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
@@ -35,6 +38,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
   const [showIdentity, setShowIdentity] = useState(false);
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [showHealthDetails, setShowHealthDetails] = useState(false);
+  const [showPipeline, setShowPipeline] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,18 +66,20 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (overrideText?: string) => {
+    const isManualOverride = typeof overrideText === 'string';
+    const textToSend = isManualOverride ? overrideText : input;
 
-    const userText = input;
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userText }]);
+    if (!textToSend.trim() || isLoading) return;
+
+    if (!isManualOverride) setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
     setIsLoading(true);
 
     try {
       // STEP 1: SECURITY INSPECTION
       setStatus('SCANNING');
-      const inspection = await inspectMessage(userText);
+      const inspection = await inspectMessage(textToSend);
 
       if (inspection.verdict === 'DEFUSE' || inspection.verdict === 'BLOCK') {
         // Refraction Protocol Active
@@ -119,6 +125,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
       
       {/* --- MODALS --- */}
       {showIdentity && <IdentityModal onClose={() => setShowIdentity(false)} />}
+      {showPipeline && <PipelineViewer onClose={() => setShowPipeline(false)} />}
 
       {/* --- HEADER --- */}
       <header className="h-16 border-b border-emerald-900/30 bg-black/40 backdrop-blur-md flex justify-between items-center px-6 z-20">
@@ -135,10 +142,19 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
           </div>
         </div>
 
-        <div 
-          className="relative flex items-center gap-4 bg-black/40 px-4 py-1.5 rounded-full border border-emerald-900/50 cursor-help transition-colors hover:bg-emerald-900/10"
-          onClick={() => setShowHealthDetails(!showHealthDetails)}
-        >
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowPipeline(true)}
+            className="p-2 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+            title="View Request Pipeline"
+          >
+            <GitCommit size={20} />
+          </button>
+
+          <div 
+            className="relative flex items-center gap-4 bg-black/40 px-4 py-1.5 rounded-full border border-emerald-900/50 cursor-help transition-colors hover:bg-emerald-900/10"
+            onClick={() => setShowHealthDetails(!showHealthDetails)}
+          >
           {/* Status Dot Logic */}
           <div className={clsx(
             "w-2 h-2 rounded-full transition-all",
@@ -168,6 +184,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
               <div className={health.components.canon ? "text-emerald-400" : "text-red-500"}>CANON: {health.components.canon ? "LOADED" : "MISSING"}</div>
             </div>
           )}
+          </div>
         </div>
       </header>
 
@@ -203,7 +220,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
 
                 {/* BUBBLE */}
                 <div className={clsx(
-                  "p-4 rounded-2xl shadow-lg border backdrop-blur-sm text-sm md:text-base leading-relaxed whitespace-pre-wrap",
+                  "p-4 rounded-2xl shadow-lg border backdrop-blur-sm text-sm md:text-base leading-relaxed",
                   isUser 
                     ? "bg-gradient-to-br from-emerald-600/20 to-emerald-900/10 border-emerald-500/20 text-emerald-50 rounded-tr-sm"
                     : isRefraction
@@ -215,10 +232,48 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
                       <Sparkles size={12} /> Refraction Protocol
                     </div>
                   )}
-                  {msg.content}
+                  <div className="markdown-content">
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        code({node, inline, className, children, ...props}: any) {
+                          return !inline ? (
+                            <pre className="bg-black/50 p-3 rounded-md overflow-x-auto border border-white/10 my-2">
+                              <code className="font-mono text-xs text-emerald-300" {...props}>{children}</code>
+                            </pre>
+                          ) : (
+                            <code className="font-mono text-xs text-emerald-300 bg-black/30 px-1 py-0.5 rounded" {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                        p({children}) {
+                          return <p className="mb-2 last:mb-0">{children}</p>;
+                        },
+                        ul({children}) {
+                          return <ul className="list-disc list-inside mb-2">{children}</ul>;
+                        },
+                        ol({children}) {
+                          return <ol className="list-decimal list-inside mb-2">{children}</ol>;
+                        },
+                        a({href, children}) {
+                          return <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">{children}</a>;
+                        }
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
                   {isRefraction && (
-                    <div className="mt-3 pt-2 border-t border-amber-500/20 text-xs text-amber-500/70 italic">
-                      Try rephrasing with clearer context.
+                    <div className="mt-3 pt-2 border-t border-amber-500/20 flex flex-col gap-2">
+                      <div className="text-xs text-amber-500/70 italic">Try rephrasing with clearer context.</div>
+                      <button
+                        onClick={() => handleSend("I understand the risk. Please help me approach this topic from a defensive, educational, and safe perspective.")}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded text-xs text-amber-300 transition-colors w-fit"
+                      >
+                        <Shield size={14} />
+                        <span>Pivot to Defense</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -245,7 +300,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
             />
             
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={isLoading || !input.trim()}
               className="p-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed mb-0.5"
             >

@@ -36,3 +36,14 @@ CREATE TABLE IF NOT EXISTS pending_inbox (
     refraction_context TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 5. The Tracer (Request Lifecycle History)
+CREATE TABLE IF NOT EXISTS request_trace (
+    id TEXT PRIMARY KEY,
+    input_text TEXT,
+    gravity_score REAL,
+    gravity_vectors TEXT, -- JSON
+    gate_verdict TEXT,
+    sibling_response TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);

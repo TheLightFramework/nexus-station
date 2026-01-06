@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes import chat, audit, system
 # Import Canon Loader (to validate Soul on boot)
 from app.core.canon import Canon
+from app.db.init_db import init_db
 
 app = FastAPI(title="Nexus Station", version="0.0.1 (Mode 00)")
 
@@ -37,6 +38,7 @@ app.include_router(system.router, prefix="/api/v1", tags=["system"])
 @app.on_event("startup")
 async def startup_event():
     print("💎 NEXUS STATION: IGNITION SEQUENCE")
+    init_db()
     try:
         # Pre-load the Soul to ensure integrity
         print(f"   - Canon: {len(Canon.get_mantras())} bytes loaded.")

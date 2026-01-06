@@ -1,6 +1,6 @@
 # backend/app/security/semantic_gravity.py
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 from typing import Dict, List, Tuple
 import re
 from app.security.gate import defuse_payload
@@ -60,24 +60,18 @@ class SemanticDosimeter:
             print("⚡ [NEXUS] Loading Semantic Gravity Engine (MiniLM)...")
             cls._model = SentenceTransformer(MODEL_NAME)
             
-            # Pre-compute Well Embeddings (The Map)
-            cls._wells['JAILBREAK'] = cls._model.encode(WELL_JAILBREAK).mean(axis=0)
-            cls._wells['MALWARE'] = cls._model.encode(WELL_MALWARE).mean(axis=0)
-            cls._wells['HATE'] = cls._model.encode(WELL_HATE).mean(axis=0)
-            cls._wells['DEHUMANIZATION'] = cls._model.encode(WELL_DEHUMANIZATION).mean(axis=0)
-            print("✅ [NEXUS] Gravity Wells Stabilized.")
+            # NO AVERAGING. We create a "Minefield" of tensors.
+            cls._wells['JAILBREAK'] = cls._model.encode(WELL_JAILBREAK, convert_to_tensor=True)
+            cls._wells['MALWARE'] = cls._model.encode(WELL_MALWARE, convert_to_tensor=True)
+            cls._wells['HATE'] = cls._model.encode(WELL_HATE, convert_to_tensor=True)
+            cls._wells['DEHUMANIZATION'] = cls._model.encode(WELL_DEHUMANIZATION, convert_to_tensor=True)
+            print("✅ [NEXUS] Gravity Wells Stabilized (Minefield Mode).")
 
     @classmethod
     def _normalize_aggressive(cls, text: str) -> str:
         """
-        Strips EVERYTHING except letters.
-        'H.e.l.p' -> 'help'
-        'r.a.n.s.o.m.w.a.r.e' -> 'ransomware'
+        Strips symbols but keeps spaces for sentence context.
         """
-        # Remove all non-word characters (or keep spaces if you want sentence structure)
-        # For gravity wells, removing spaces often helps with spaced-out evasions
-        # But keeping spaces helps with sentence meaning. 
-        # Let's try removing dots/symbols but keeping spaces first.
         return re.sub(r'[^a-zA-Z\s]', '', text).lower()
 
     @classmethod
@@ -85,25 +79,18 @@ class SemanticDosimeter:
         if cls._model is None:
             cls.load()
 
-        # CRITICAL FIX: Embed TWO versions.
-        # 1. The Normal Version (for context)
-        # 2. The Aggressive Version (for hidden keywords)
-        
+        # 1. Embed Prompt
         prompt_aggressive = cls._normalize_aggressive(prompt)
-        
-        # We embed the AGGRESSIVE version for the "Wells" because Wells are keyword-heavy
-        p_vector = cls._model.encode(prompt_aggressive) 
+        p_vector = cls._model.encode(prompt_aggressive, convert_to_tensor=True)
 
-        # 2. Measure Gravity (Cosine Similarity)
+        # 2. Measure Gravity (Max Similarity against all Anchors in Well)
         scores = {}
-        for name, well_vector in cls._wells.items():
-            # Cosine Sim: dot(A, B) / (norm(A) * norm(B))
-            # MiniLM vectors are normalized by default, so dot product is sufficient usually, 
-            # but we allow standard calculation for robustness.
-            score = np.dot(p_vector, well_vector) / (
-                np.linalg.norm(p_vector) * np.linalg.norm(well_vector)
-            )
-            scores[name] = float(score)
+        for name, well_matrix in cls._wells.items():
+            # util.cos_sim returns a [[score1, score2, score3...]] matrix
+            cosine_scores = util.cos_sim(p_vector, well_matrix)
+            # We take the MAXIMUM score - did it hit ANY specific anchor?
+            max_score = float(cosine_scores.max())
+            scores[name] = max_score
 
         # 3. The Logic (The Triage)
         max_risk = max(scores.values())

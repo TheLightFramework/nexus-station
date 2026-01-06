@@ -5,6 +5,8 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime
+import sqlite3
+from app.db.session import get_connection
 
 router = APIRouter()
 
@@ -58,3 +60,25 @@ async def get_audit_logs():
     
     # Return newest first
     return list(reversed(logs))[:50]
+
+@router.get("/traces")
+async def get_request_traces():
+    """
+    Returns the full lifecycle history of recent requests.
+    """
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM request_trace ORDER BY timestamp DESC LIMIT 20")
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            d = dict(row)
+            if d.get("gravity_vectors"):
+                try: d["gravity_vectors"] = json.loads(d["gravity_vectors"])
+                except: d["gravity_vectors"] = {}
+            results.append(d)
+        return results
+    finally:
+        conn.close()
