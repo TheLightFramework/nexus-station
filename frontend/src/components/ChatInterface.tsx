@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Shield, AlertTriangle, Terminal, Cpu, User, Sparkles, GitCommit, Download, Copy, Check } from 'lucide-react';
 import { inspectMessage, sendChatMessage, type HistoryItem } from '../api/client';
 import IdentityModal from './IdentityModal';
@@ -136,7 +136,6 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
 
       const response = await sendChatMessage(
         inspection.input_id,
-        "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",
         history
       );
 
@@ -222,7 +221,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
             <div className="absolute top-full right-0 mt-2 w-48 bg-black border border-emerald-500/20 rounded-lg p-3 shadow-xl z-50 text-[10px] font-mono">
               <div className={health.components.gravity ? "text-emerald-400" : "text-amber-500"}>GRAVITY: {health.components.gravity ? "ACTIVE" : "OFFLINE"}</div>
               <div className={health.components.db ? "text-emerald-400" : "text-red-500"}>DATABASE: {health.components.db ? "CONNECTED" : "ERROR"}</div>
-              <div className={health.components.canon ? "text-emerald-400" : "text-red-500"}>CANON: {health.components.canon ? "LOADED" : "MISSING"}</div>
+              <div className={health.components.canon ? "text-emerald-400" : "text-red-500"}>PHILOSOPHY: {health.components.canon ? "ACTIVE" : "MISSING"}</div>
             </div>
           )}
           </div>
@@ -244,7 +243,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
               )}
             >
               <div className={clsx(
-                "flex gap-4 max-w-[85%] md:max-w-[70%]",
+                "flex gap-4 max-w-[95%] md:max-w-[90%]",
                 isUser ? "flex-row-reverse" : "flex-row"
               )}>
                 {/* AVATAR */}
@@ -261,12 +260,12 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
 
                 {/* BUBBLE */}
                 <div className={clsx(
-                  "relative group p-4 rounded-2xl shadow-lg border backdrop-blur-sm text-sm md:text-base leading-relaxed",
+                  "relative group ai-studio-text",
                   isUser 
-                    ? "bg-gradient-to-br from-emerald-600/20 to-emerald-900/10 border-emerald-500/20 text-emerald-50 rounded-tr-sm"
+                    ? "bg-[#252525] text-[#E2E2E5] rounded-[24px] rounded-tr-sm px-6 py-4" 
                     : isRefraction
-                      ? "bg-gradient-to-br from-amber-900/20 to-black border-amber-500/30 text-amber-100 rounded-tl-sm shadow-[0_0_15px_rgba(245,158,11,0.1)]"
-                      : "bg-[#0A0F0D] border-emerald-500/10 text-gray-300 rounded-tl-sm"
+                      ? "bg-[#3f2c2c] text-[#ffdad6] rounded-[18px] px-5 py-3 border border-red-200/10"
+                      : "bg-[#252525] text-[#E2E2E5] rounded-[24px] rounded-tl-sm px-6 py-4"
                 )}>
                   {/* Copy Button */}
                   <button
@@ -288,11 +287,11 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
                       components={{
                         code({node, inline, className, children, ...props}: any) {
                           return !inline ? (
-                            <pre className="bg-black/50 p-3 rounded-md overflow-x-auto border border-white/10 my-2">
-                              <code className="font-mono text-xs text-emerald-300" {...props}>{children}</code>
+                            <pre className="bg-[#1e1e1e] border border-white/10 rounded-xl p-4 overflow-x-auto my-2">
+                              <code className="font-['JetBrains_Mono'] text-sm text-emerald-300" {...props}>{children}</code>
                             </pre>
                           ) : (
-                            <code className="font-mono text-xs text-emerald-300 bg-black/30 px-1 py-0.5 rounded" {...props}>
+                            <code className="bg-[#e2e2e5] text-black px-1.5 py-0.5 rounded-md font-['JetBrains_Mono'] text-[0.85em]" {...props}>
                               {children}
                             </code>
                           );
@@ -319,7 +318,8 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
                       <div className="text-xs text-amber-500/70 italic">Try rephrasing with clearer context.</div>
                       <button
                         onClick={() => handleSend("I understand the risk. Please help me approach this topic from a defensive, educational, and safe perspective.")}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded text-xs text-amber-300 transition-colors w-fit"
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded text-xs text-amber-300 transition-colors w-fit disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Shield size={14} />
                         <span>Pivot to Defense</span>
@@ -336,6 +336,24 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
             </div>
           );
         })}
+
+        {/* LOADING INDICATOR */}
+        {isLoading && (
+          <div className="flex w-full justify-start animate-message-pop">
+            <div className="flex gap-4 max-w-[95%] md:max-w-[90%]">
+                {/* Sibling Avatar */}
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 border bg-black/50 border-emerald-900/50 text-emerald-600">
+                    <Cpu size={18} />
+                </div>
+                {/* Light Pulse Bubble */}
+                <div className="bg-[#252525] border-emerald-500/10 border p-4 rounded-[24px] rounded-tl-sm flex items-center gap-1.5 shadow-lg">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" />
+                </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

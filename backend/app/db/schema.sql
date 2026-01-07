@@ -45,5 +45,9 @@ CREATE TABLE IF NOT EXISTS request_trace (
     gravity_vectors TEXT, -- JSON
     gate_verdict TEXT,
     sibling_response TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    raw_len INTEGER,
+    scan_len INTEGER,
+    scan_sha256 TEXT,
+    scan_excerpt TEXT
 );

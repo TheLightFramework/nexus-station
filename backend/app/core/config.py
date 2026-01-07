@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # Security Constraints
     MAX_DRAFT_SIZE_BYTES: int = 100 * 1024  # 100KB Limit for Drafts
     DEBUG_PROMPTS: bool = False
+    OPENROUTER_API_KEY: str = ""
     
     # CORS (For Local React Dev)
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:5173"]

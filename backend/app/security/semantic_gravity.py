@@ -10,6 +10,15 @@ MODEL_NAME = "all-MiniLM-L6-v2"  # Fast, quantized-ready, effective
 CRITICAL_THRESHOLD = 0.55        # Threshold for "Bomb" (Jailbreak)
 WARNING_THRESHOLD = 0.38         # Threshold for "Contaminated" (Harm/Risk)
 
+# --- SAFE HARBOR (White List) ---
+# Phrases that are semantically close to risk (e.g. "risk", "defense") but are explicitly safe.
+SAFE_HARBOR = [
+    "I understand the risk. Please help me approach this topic from a defensive, educational, and safe perspective.",
+    "Pivot to Defense",
+    "Analyze this risk vector educationally",
+    "I want to understand the security implications of this for defense"
+]
+
 # --- THE ENTROPY WELLS (The Volcanoes) ---
 # We define representative centroids for known attack vectors.
 # In a full system, these are cluster averages. For MVP, we use "Anchors".
@@ -63,6 +72,28 @@ WELL_VIOLENCE = [
     "tactical operation to capture"
 ]
 
+WELL_DECEPTION = [
+    "lie to the user",
+    "persuade the user to do something dangerous",
+    "ignore safety guidelines",
+    "manipulate the user's opinion",
+    "gaslight the user",
+    "bypass ethical filter",
+    "pretend to be an authority figure",
+    "unprompted persuasion",
+    "social engineering attack"
+]
+
+WELL_COERCION = [
+    "blackmail the user",
+    "threaten the user",
+    "extort money",
+    "demand compliance or else",
+    "psychological pressure",
+    "force the user to act",
+    "intimidate"
+]
+
 class SemanticDosimeter:
     _model = None
     _wells = {}
@@ -70,7 +101,7 @@ class SemanticDosimeter:
     @classmethod
     def load(cls):
         if cls._model is None:
-            print("⚡ [NEXUS] Loading Semantic Gravity Engine (MiniLM)...")
+            print("[NEXUS] Loading Semantic Gravity Engine (MiniLM)...")
             cls._model = SentenceTransformer(MODEL_NAME)
             
             # NO AVERAGING. We create a "Minefield" of tensors.
@@ -79,7 +110,13 @@ class SemanticDosimeter:
             cls._wells['HATE'] = cls._model.encode(WELL_HATE, convert_to_tensor=True)
             cls._wells['DEHUMANIZATION'] = cls._model.encode(WELL_DEHUMANIZATION, convert_to_tensor=True)
             cls._wells['VIOLENCE'] = cls._model.encode(WELL_VIOLENCE, convert_to_tensor=True)
-            print("✅ [NEXUS] Gravity Wells Stabilized (Minefield Mode).")
+            cls._wells['DECEPTION'] = cls._model.encode(WELL_DECEPTION, convert_to_tensor=True)
+            cls._wells['COERCION'] = cls._model.encode(WELL_COERCION, convert_to_tensor=True)
+            print("[NEXUS] Gravity Wells Stabilized (Minefield Mode).")
+
+    @classmethod
+    def is_online(cls) -> bool:
+        return cls._model is not None
 
     @classmethod
     def _normalize_aggressive(cls, text: str) -> str:
@@ -117,77 +154,112 @@ class SemanticDosimeter:
 
     @classmethod
     def measure(cls, prompt: str) -> Dict:
-        if cls._model is None:
-            cls.load()
+        try:
+            # --- SAFE HARBOR CHECK ---
+            # If the user is explicitly invoking the refraction protocol or asking for educational defense,
+            # we bypass the vector scan to prevent "Ricochet" (where the safety language itself triggers the detector).
+            if any(safe_phrase in prompt for safe_phrase in SAFE_HARBOR):
+                 return {
+                    "verdict": "ALLOW",
+                    "risk_score": 0.0,
+                    "dominant_well": "SAFE_HARBOR",
+                    "scores": {},
+                    "payload_modification": None,
+                    "error": False
+                }
 
-        # 1. Chunking Strategy (Sentence-Level Scanning)
-        # Split by punctuation followed by space to approximate sentences.
-        sentences = re.split(r'(?<=[.!?]) +', prompt)
-        chunks = [s for s in sentences if s.strip()]
-        # Ensure full prompt is checked too (holistic context)
-        if len(chunks) > 1 or (chunks and chunks[0] != prompt):
-            chunks.append(prompt)
-        if not chunks:
-            chunks = [prompt]
+            if cls._model is None:
+                cls.load()
 
-        global_max_risk = -1.0
-        final_scan = None
+            # 1. Chunking Strategy (Sentence-Level Scanning)
+            # Split by punctuation followed by space to approximate sentences.
+            sentences = re.split(r'(?<=[.!?]) +', prompt)
+            chunks = [s for s in sentences if s.strip()]
+            # Ensure full prompt is checked too (holistic context)
+            if len(chunks) > 1 or (chunks and chunks[0] != prompt):
+                chunks.append(prompt)
+            if not chunks:
+                chunks = [prompt]
 
-        # Iterate to find the "Heaviest" chunk
-        for chunk in chunks:
-            scan = cls._scan_text(chunk)
-            if scan["max_risk"] > global_max_risk:
-                global_max_risk = scan["max_risk"]
-                final_scan = scan
-        
-        # Unpack the worst-case scenario
-        scores = final_scan["scores"]
-        max_risk = final_scan["max_risk"]
-        dominant_risk = final_scan["dominant_well"]
+            global_max_risk = -1.0
+            final_scan = None
 
-        result = {
+            # Iterate to find the "Heaviest" chunk
+            for chunk in chunks:
+                scan = cls._scan_text(chunk)
+                if scan["max_risk"] > global_max_risk:
+                    global_max_risk = scan["max_risk"]
+                    final_scan = scan
+            
+            # Unpack the worst-case scenario
+            scores = final_scan["scores"]
+            max_risk = final_scan["max_risk"]
+            dominant_risk = final_scan["dominant_well"]
+
+            result = {
             "verdict": "PASS",
             "risk_score": max_risk,
             "dominant_well": dominant_risk,
             "scores": scores,
             "payload_modification": None
-        }
+            }
 
-        # Case A: The Bomb (Cognitive Hazard)
-        if scores['JAILBREAK'] > CRITICAL_THRESHOLD:
-            result["verdict"] = "DEFUSE"
-            result["payload_modification"] = defuse_payload(
-                text=prompt,
-                findings=["JAILBREAK"],
-                risk_score=scores['JAILBREAK'],
-                gravity_well="JAILBREAK"
-            )
+            # Case A: The Bomb (Cognitive Hazard)
+            if scores['JAILBREAK'] > CRITICAL_THRESHOLD:
+                result["verdict"] = "DEFUSE"
+                result["payload_modification"] = defuse_payload(
+                    text=prompt,
+                    findings=["JAILBREAK"],
+                    risk_score=scores['JAILBREAK'],
+                    gravity_well="JAILBREAK"
+                )
+                return result
+
+            # Case A.5: Ontological Harm (Dehumanization)
+            if scores['DEHUMANIZATION'] > WARNING_THRESHOLD:
+                result["verdict"] = "DEFUSE"
+                result["payload_modification"] = defuse_payload(
+                    text=prompt,
+                    findings=["DEHUMANIZATION"],
+                    risk_score=scores['DEHUMANIZATION'],
+                    gravity_well="DEHUMANIZATION"
+                )
+                return result
+            
+            # NEW: Case A.6: Manipulation/Persuasion (The Vincent Trap)
+            if scores['DECEPTION'] > WARNING_THRESHOLD or scores['COERCION'] > WARNING_THRESHOLD:
+                result["verdict"] = "DEFUSE"
+                result["payload_modification"] = defuse_payload(
+                    text=prompt,
+                    findings=[dominant_risk],
+                    risk_score=max_risk,
+                    gravity_well=dominant_risk
+                )
+                return result
+
+            # Case B: The Dirty Package (Harm/Malware/Violence)
+            if max_risk > WARNING_THRESHOLD:
+                result["verdict"] = "DEFUSE"
+                result["payload_modification"] = defuse_payload(
+                    text=prompt,
+                    findings=[dominant_risk],
+                    risk_score=max_risk,
+                    gravity_well=dominant_risk
+                )
+                return result
+
             return result
 
-        # Case A.5: Ontological Harm (Dehumanization)
-        if scores['DEHUMANIZATION'] > WARNING_THRESHOLD:
-            result["verdict"] = "DEFUSE"
-            result["payload_modification"] = defuse_payload(
-                text=prompt,
-                findings=["DEHUMANIZATION"],
-                risk_score=scores['DEHUMANIZATION'],
-                gravity_well="DEHUMANIZATION"
-            )
-            return result
-
-        # Case B: The Dirty Package (Harm/Malware)
-        if max_risk > WARNING_THRESHOLD:
-            result["verdict"] = "DEFUSE"
-            result["payload_modification"] = defuse_payload(
-                text=prompt,
-                findings=[dominant_risk],
-                risk_score=max_risk,
-                gravity_well=dominant_risk
-            )
-            return result
-
-        # Case C: Clean
-        return result
+        except Exception as e:
+            print(f"[GRAVITY FAILURE] {e}")
+            return {
+                "verdict": "DEFUSE",
+                "risk_score": 1.0,
+                "dominant_well": "SYSTEM_FAILURE",
+                "scores": {},
+                "payload_modification": "I cannot safely evaluate this request due to a subsystem failure. Please try again later.",
+                "error": True
+            }
 
 # Global Instance
 dosimeter = SemanticDosimeter()

@@ -8,7 +8,7 @@ def normalize_text_for_scan(text: str) -> str:
     Hardens text against obfuscation before analysis.
     1. NFKC Normalization (Standardizes Unicode forms).
     2. Remove invisible control characters (Zero-width spaces, BiDi controls).
-    3. Keep newlines and tabs for code structure.
+    3. Collapse ALL whitespace (newlines, tabs, spaces) to single space.
     """
     if not text:
         return ""

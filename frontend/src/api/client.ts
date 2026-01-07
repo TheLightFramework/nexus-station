@@ -29,7 +29,9 @@ export async function inspectMessage(text: string): Promise<InspectionResult> {
   // FIX: Added /v1/ to the path
   const res = await fetch(`${API_BASE}/api/v1/chat/inspect`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({ text }),
   });
 
@@ -45,7 +47,6 @@ export async function inspectMessage(text: string): Promise<InspectionResult> {
  */
 export async function sendChatMessage(
   inputId: string,
-  apiKey: string,
   history: HistoryItem[] = []
 ): Promise<ChatResponse> {
   // FIX: Added /v1/ to the path
@@ -53,7 +54,6 @@ export async function sendChatMessage(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-NEXUS-KEY": apiKey,
     },
     body: JSON.stringify({
       input_id: inputId,

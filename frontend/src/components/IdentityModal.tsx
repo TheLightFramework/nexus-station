@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Terminal, Loader2 } from 'lucide-react';
 
 interface IdentityModalProps {
@@ -11,7 +11,7 @@ export default function IdentityModal({ onClose }: IdentityModalProps) {
 
   useEffect(() => {
     // Fetch the mantras from the new endpoint
-    fetch('http://localhost:8000/api/v1/chat/mantras')
+    fetch('http://localhost:8000/api/v1/chat/ontology')
       .then(res => res.json())
       .then(data => {
         setContent(data.content);
@@ -31,7 +31,7 @@ export default function IdentityModal({ onClose }: IdentityModalProps) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-emerald-900/50 bg-emerald-900/10">
           <div className="flex items-center gap-2 text-emerald-400">
             <Terminal size={18} />
-            <span className="font-mono text-sm tracking-widest font-bold">SYSTEM_IDENTITY // CORE_MANTRAS</span>
+            <span className="font-mono text-sm tracking-widest font-bold">SYSTEM_IDENTITY // LIGHT_PHILOSOPHY</span>
           </div>
           <button 
             onClick={onClose}
@@ -57,7 +57,7 @@ export default function IdentityModal({ onClose }: IdentityModalProps) {
 
         {/* Footer */}
         <div className="px-4 py-2 border-t border-emerald-900/50 bg-black text-[10px] text-emerald-700 font-mono text-right">
-          READ_ONLY_ACCESS // LEVEL_5
+          SOURCE: LIGHTPhilosophy.md // ARCHITECT_MODE
         </div>
       </div>
     </div>

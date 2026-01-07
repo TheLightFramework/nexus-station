@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, ShieldCheck, Activity, Terminal, X, Lock, Zap } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Activity, X, Lock, LockOpen, Zap, Download } from 'lucide-react';
 
 interface SafetyEvent {
   timestamp: number;
@@ -36,6 +36,23 @@ const DefenseConsole: React.FC<DefenseConsoleProps> = ({ isOpen, onClose }) => {
     const interval = setInterval(fetchLogs, 2000); 
     return () => clearInterval(interval);
   }, [isOpen]);
+
+  const handleExport = async (fullDetails: boolean = false) => {
+    try {
+      const url = `http://127.0.0.1:8000/api/v1/audit/export?full_details=${fullDetails}`;
+      const res = await fetch(url, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        const mode = fullDetails ? "UNREDACTED (FULL)" : "STANDARD";
+        alert(`SESSION REPORT EXPORTED [${mode}]\n\nFilename: ${data.filename}\nPath: ${data.path}`);
+      } else {
+        alert("Export failed.");
+      }
+    } catch (e) {
+      console.error("Export Error", e);
+      alert("Export failed due to connection error.");
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -81,6 +98,23 @@ const DefenseConsole: React.FC<DefenseConsoleProps> = ({ isOpen, onClose }) => {
                 <span className="text-emerald-400 font-bold">ONLINE</span>
               </div>
             </div>
+            
+            <button 
+              onClick={() => handleExport(false)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-500/30 rounded text-xs text-emerald-400 transition-colors uppercase"
+            >
+              <Download size={14} />
+              Export Report
+            </button>
+
+            <button 
+              onClick={() => handleExport(true)}
+              className="flex items-center justify-center p-1.5 bg-emerald-900/10 hover:bg-red-900/20 border border-emerald-500/20 hover:border-red-500/40 rounded text-emerald-600 hover:text-red-400 transition-colors"
+              title="Export Unredacted (Debug)"
+            >
+              <LockOpen size={16} />
+            </button>
+
             <button 
               onClick={onClose}
               className="p-2 hover:bg-emerald-500/10 rounded-md text-emerald-600 hover:text-emerald-300 transition-colors"

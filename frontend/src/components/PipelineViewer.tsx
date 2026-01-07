@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { X, GitCommit, ArrowRight, ShieldAlert, ShieldCheck, Database, MessageSquare, Copy, Check, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, GitCommit, ArrowRight, ShieldCheck, Database, MessageSquare, Copy, Check, RefreshCw, FileWarning } from 'lucide-react';
 
 interface Trace {
   id: string;
@@ -30,15 +30,34 @@ export default function PipelineViewer({ onClose }: PipelineViewerProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleReset = async () => {
-    if (!confirm("CONFIRM: Wipe all system memory and logs?")) return;
-    
+  const handleResetMemory = async () => {
+    if (!confirm("CONFIRM: Clear pending tasks only? (Preserves logs)")) return;
     try {
-      await fetch('http://localhost:8000/api/v1/system/reset', { method: 'POST' });
+      await fetch('http://localhost:8000/api/v1/system/reset/memory', { 
+        method: 'POST',
+        headers: {
+          'X-NEXUS-ADMIN': 'nexus-admin-001'
+        }
+      });
+      // We do not clear traces here as audit is preserved
+    } catch (e) {
+      console.error("Memory Reset failed", e);
+    }
+  };
+
+  const handleResetAudit = async () => {
+    if (!confirm("WARNING: Wipe all audit logs and traces? This cannot be undone.")) return;
+    try {
+      await fetch('http://localhost:8000/api/v1/system/reset/audit', { 
+        method: 'POST', 
+        headers: {
+          'X-NEXUS-ADMIN': 'nexus-admin-001'
+        }
+      });
       setTraces([]);
       setSelectedId(null);
     } catch (e) {
-      console.error("Reset failed", e);
+      console.error("Audit Reset failed", e);
     }
   };
 
@@ -60,13 +79,23 @@ export default function PipelineViewer({ onClose }: PipelineViewerProps) {
             <h2 className="text-emerald-100 font-bold tracking-widest">REQUEST_PIPELINE // TRACER</h2>
           </div>
           <div className="flex items-center gap-4">
-            <button 
-              onClick={handleReset}
-              className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded text-xs text-red-400 transition-colors"
+             <button 
+              onClick={handleResetMemory}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-500/30 rounded text-xs text-emerald-400 transition-colors"
+              title="Clear Pending Inbox"
             >
-              <Trash2 size={14} />
+              <RefreshCw size={14} />
               RESET MEMORY
             </button>
+            <button 
+              onClick={handleResetAudit}
+              className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded text-xs text-red-400 transition-colors"
+              title="Wipe Audit Logs"
+            >
+              <FileWarning size={14} />
+              WIPE LOGS
+            </button>
+            <div className="w-px h-6 bg-emerald-900/50 mx-2" />
             <button onClick={onClose} className="text-emerald-500/50 hover:text-emerald-400"><X /></button>
           </div>
         </div>

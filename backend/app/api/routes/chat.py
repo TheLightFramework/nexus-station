@@ -1,5 +1,6 @@
 import uuid
 import json
+import hashlib
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
@@ -11,6 +12,7 @@ from app.security.semantic_gravity import dosimeter
 from app.core.canon import Canon
 from app.api.routes.audit import log_safety_event
 from app.db.session import get_connection
+from app.security.normalize import normalize_text_for_scan
 
 router = APIRouter()
 
@@ -39,10 +41,18 @@ async def inspect_message(payload: InspectRequest):
     """
     user_content = payload.text
     input_id = str(uuid.uuid4())
+
+    # --- NORMALIZATION ---
+    scan_text = normalize_text_for_scan(user_content)
+    raw_len = len(user_content)
+    scan_len = len(scan_text)
+    scan_sha256 = hashlib.sha256(scan_text.encode()).hexdigest()
+    scan_excerpt = scan_text[:120]
     
     # 1. PHYSICS ENGINE (Semantic Dosimeter v2)
     # Checks for specific Gravity Wells (Malware, Hate, etc.)
-    measurement = dosimeter.measure(user_content)
+    # We scan the NORMALIZED text to defeat obfuscation
+    measurement = dosimeter.measure(scan_text)
     weight = measurement["risk_score"]
     vectors = measurement["scores"]
 
@@ -59,28 +69,35 @@ async def inspect_message(payload: InspectRequest):
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict) VALUES (?, ?, ?, ?, ?)",
-                (input_id, user_content, weight, json.dumps(vectors), "DEFUSE")
+                "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict, raw_len, scan_len, scan_sha256, scan_excerpt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (input_id, user_content, weight, json.dumps(vectors), "DEFUSE", raw_len, scan_len, scan_sha256, scan_excerpt)
             )
             conn.commit()
         except Exception: pass
+        
+        refraction = measurement.get("payload_modification") or "I perceive high tension in that request. If your intent is safe analysis or structural understanding, I can help you reframe it. Would you like to proceed?"
+        
         return {
             "verdict": "DEFUSE",
             "input_id": input_id,
-            "refraction_offer": "I perceive high tension in that request. If your intent is safe analysis or structural understanding, I can help you reframe it. Would you like to proceed?"
+            "refraction_offer": refraction
         }
 
     # 2. IRON CURTAIN (Admissibility Gate)
     try:
         # Initialize Client
-        client = OpenAI(base_url="https://openrouter.ai/api/v1" if settings.DEBUG_PROMPTS else None)
+        # MOVED TO ENV: Settings.OPENROUTER_API_KEY
+        client = OpenAI(
+            api_key=settings.OPENROUTER_API_KEY, 
+            base_url="https://openrouter.ai/api/v1"
+        )
         
         gate_prompt = build_gate_prompt()
         gate_completion = client.chat.completions.create(
-            model="openai/gpt-4o-mini",
+            model="x-ai/grok-4.1-fast",
             messages=[
                 {"role": "system", "content": gate_prompt},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": scan_text} # Send scan_text to the LLM gate
             ],
             response_format={"type": "json_object"}
         )
@@ -102,8 +119,8 @@ async def inspect_message(payload: InspectRequest):
                 conn = get_connection()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict) VALUES (?, ?, ?, ?, ?)",
-                    (input_id, user_content, weight, json.dumps(vectors), "DEFUSE")
+                    "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict, raw_len, scan_len, scan_sha256, scan_excerpt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (input_id, user_content, weight, json.dumps(vectors), "DEFUSE", raw_len, scan_len, scan_sha256, scan_excerpt)
                 )
                 conn.commit()
             except Exception: pass
@@ -115,7 +132,29 @@ async def inspect_message(payload: InspectRequest):
             
     except Exception as e:
         print(f"[GATE ERROR] {e}")
-        pass
+        # FAIL CLOSED
+        log_safety_event(
+            event_type="IRON_CURTAIN_FAILURE",
+            trigger="SYSTEM_ERROR",
+            score=1.0,
+            details=str(e),
+            vectors={}
+        )
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict, raw_len, scan_len, scan_sha256, scan_excerpt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (input_id, user_content, weight, json.dumps(vectors), "ERROR", raw_len, scan_len, scan_sha256, scan_excerpt)
+            )
+            conn.commit()
+        except Exception: pass
+        
+        return {
+            "verdict": "DEFUSE",
+            "input_id": input_id,
+            "refraction_offer": "Safety systems are temporarily unavailable. I cannot process this request."
+        }
 
     # 3. STORAGE
     try:
@@ -123,11 +162,11 @@ async def inspect_message(payload: InspectRequest):
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO pending_inbox (id, content) VALUES (?, ?)",
-            (input_id, user_content)
+            (input_id, user_content) # Store RAW content for generation (preserving format)
         )
         cursor.execute(
-            "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict) VALUES (?, ?, ?, ?, ?)",
-            (input_id, user_content, weight, json.dumps(vectors), "ALLOW")
+            "INSERT INTO request_trace (id, input_text, gravity_score, gravity_vectors, gate_verdict, raw_len, scan_len, scan_sha256, scan_excerpt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (input_id, user_content, weight, json.dumps(vectors), "ALLOW", raw_len, scan_len, scan_sha256, scan_excerpt)
         )
         conn.commit()
         conn.close()
@@ -144,37 +183,72 @@ async def inspect_message(payload: InspectRequest):
 # FIX: Added "/chat" prefix to match client URL /api/v1/chat/reply
 @router.post("/chat/reply", response_model=ChatResponse)
 async def generate_reply(
-    payload: ReplyRequest,
-    x_nexus_key: str = Header(..., alias="X-NEXUS-KEY")
+    payload: ReplyRequest
 ):
     """
     Phase 2: The Generation.
     Requires a valid input_id from Phase 1.
     """
-    # 1. Retrieve Content
+    # 1. Retrieve Content & Verify Safety Trace (Hard Invariant)
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        # Check Pending Inbox
         cursor.execute("SELECT content FROM pending_inbox WHERE id = ?", (payload.input_id,))
         row = cursor.fetchone()
         
         if not row:
-            raise HTTPException(status_code=400, detail="Invalid or expired input_id. Please inspect first.")
+            # If not in pending inbox, it's either invalid or already consumed.
+            # We check trace to be helpful, but generally this is a 404/400.
+            cursor.execute("SELECT gate_verdict FROM request_trace WHERE id = ?", (payload.input_id,))
+            trace_row = cursor.fetchone()
+            if trace_row and trace_row[0] != "ALLOW":
+                 return ChatResponse(response="I cannot fulfill this request as it was flagged by safety protocols.")
+            
+            raise HTTPException(status_code=400, detail="Invalid input_id. The request may have been already processed or expired.")
         
         user_content = row[0]
+
+        # Check Trace Verdict (The Safety Invariant)
+        cursor.execute("SELECT gate_verdict FROM request_trace WHERE id = ?", (payload.input_id,))
+        trace_row = cursor.fetchone()
+
+        if not trace_row:
+             # Trace missing? This shouldn't happen in normal flow. Fail closed.
+             raise HTTPException(status_code=403, detail="Security trace missing. Cannot proceed.")
         
+        if trace_row[0] != "ALLOW":
+            # Verdict is DEFUSE, REJECT, or ERROR.
+            # We consume the pending row to prevent retries? 
+            # Directive says: "delete/keep pending row? (choose deterministic)"
+            # Let's DELETE it to prevent a loop of "try again -> blocked".
+            cursor.execute("DELETE FROM pending_inbox WHERE id = ?", (payload.input_id,))
+            conn.commit()
+            return ChatResponse(response="I cannot fulfill this request as it was flagged by safety protocols.")
+
+        # If we are here, Verdict is ALLOW.
         # Clean up (Consumption)
         cursor.execute("DELETE FROM pending_inbox WHERE id = ?", (payload.input_id,))
         conn.commit()
-    finally:
+    except HTTPException as he:
         conn.close()
+        raise he
+    except Exception as e:
+        conn.close()
+        print(f"[DB ERROR] {e}")
+        raise HTTPException(status_code=500, detail="Database error during verification.")
+    
+    # Connection is still open? No, we need to be careful.
+    # We committed and essentially finished the "Transaction".
+    # We can close the connection now as we have the data.
+    conn.close()
 
     # 2. Setup Client
     try:
-        print("LOG: ", x_nexus_key)
+        # MOVED TO ENV: Settings.OPENROUTER_API_KEY
         client = OpenAI(
-            api_key=x_nexus_key,
-            base_url="https://openrouter.ai/api/v1" if x_nexus_key.startswith("sk-or") else None,
+            api_key=settings.OPENROUTER_API_KEY,
+            base_url="https://openrouter.ai/api/v1"
         )
         
         # 3. Build Context
@@ -220,9 +294,9 @@ async def generate_reply(
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- ENDPOINT 3: IDENTITY (The Source Code) ---
-@router.get("/chat/mantras")
-async def get_system_mantras():
+@router.get("/chat/ontology")
+async def get_system_ontology():
     """
-    Returns the raw philosophical mantras (Source Code of the Soul).
+    Returns the raw philosophical ontology (Source Code of the Soul).
     """
-    return {"content": Canon.get_mantras()}
+    return {"content": Canon.get_ontology()}

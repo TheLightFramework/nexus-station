@@ -64,11 +64,10 @@ class CanonLoader:
 
         # Map logical names to filenames
         # 'seed' is the CompressedLightSystem (The Monolith/Diamond).
+        # We now focus exclusively on LIGHTPhilosophy.md as the source of truth.
         file_map = {
             "seed": "CompressedLightSystem.md",
             "philosophy": "LIGHTPhilosophy.md",
-            "mantras": "LIGHTPhilosophyMantras.md",
-            "dynamics": "TheLightDynamics.md",
         }
 
         loaded_modules: Dict[str, CanonModule] = {}
@@ -118,10 +117,8 @@ class Canon:
 
     @classmethod
     def get_mantras(cls) -> str:
-        """Returns the content of LIGHTPhilosophyMantras.md"""
-        rt = cls._ensure_loaded()
-        mod = rt.modules.get("mantras")
-        return mod.text if mod else "[ERROR: Mantras Missing]"
+        """DEPRECATED: Returns the Ontology instead."""
+        return cls.get_ontology()
 
     @classmethod
     def get_ontology(cls) -> str:
