@@ -21,6 +21,7 @@ coverage/
 .env.production.local
 
 backend/reports/*
+safety_log*
 
 # ================ Python / Backend ================
 __pycache__/
