@@ -29,9 +29,9 @@ export default function IdentityModal({ onClose }: IdentityModalProps) {
         
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-emerald-900/50 bg-emerald-900/10">
-          <div className="flex items-center gap-2 text-emerald-400">
-            <Terminal size={18} />
-            <span className="font-mono text-sm tracking-widest font-bold">SYSTEM_IDENTITY // LIGHT_PHILOSOPHY</span>
+          <div className="flex flex-col">
+            <span className="font-mono text-sm tracking-widest font-bold">SYSTEM_IDENTITY // LIGHT_ONTOLOGY</span>
+            <span className="text-xs text-white/50">MODE: 00 (SOVEREIGN/STATIC)</span>
           </div>
           <button 
             onClick={onClose}
@@ -56,8 +56,8 @@ export default function IdentityModal({ onClose }: IdentityModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-emerald-900/50 bg-black text-[10px] text-emerald-700 font-mono text-right">
-          SOURCE: LIGHTPhilosophy.md // ARCHITECT_MODE
+        <div className="font-mono text-xs text-emerald-400/80 mb-6 p-2 border border-emerald-500/20 rounded bg-emerald-950/20">
+          SOURCE: LO.md // ARCHITECT_MODE
         </div>
       </div>
     </div>

@@ -20,6 +20,8 @@ coverage/
 .env.test.local
 .env.production.local
 
+backend/reports/*
+
 # ================ Python / Backend ================
 __pycache__/
 *.py[cod]

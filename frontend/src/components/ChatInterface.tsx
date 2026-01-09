@@ -221,7 +221,7 @@ export default function ChatInterface({ triggerAlert }: ChatInterfaceProps) {
             <div className="absolute top-full right-0 mt-2 w-48 bg-black border border-emerald-500/20 rounded-lg p-3 shadow-xl z-50 text-[10px] font-mono">
               <div className={health.components.gravity ? "text-emerald-400" : "text-amber-500"}>GRAVITY: {health.components.gravity ? "ACTIVE" : "OFFLINE"}</div>
               <div className={health.components.db ? "text-emerald-400" : "text-red-500"}>DATABASE: {health.components.db ? "CONNECTED" : "ERROR"}</div>
-              <div className={health.components.canon ? "text-emerald-400" : "text-red-500"}>PHILOSOPHY: {health.components.canon ? "ACTIVE" : "MISSING"}</div>
+          <div className={health.components.canon ? "text-emerald-400" : "text-red-500"}>ONTOLOGY: {health.components.canon ? "ACTIVE" : "MISSING"}</div>
             </div>
           )}
           </div>

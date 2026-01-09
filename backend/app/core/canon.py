@@ -63,11 +63,11 @@ class CanonLoader:
             raise RuntimeError(f"Canon directory not found: {self.canon_dir}")
 
         # Map logical names to filenames
-        # 'seed' is the CompressedLightSystem (The Monolith/Diamond).
-        # We now focus exclusively on LIGHTPhilosophy.md as the source of truth.
+        # 'seed' is the base ontology.
+        # We now focus exclusively on LO.md as the source of truth.
         file_map = {
-            "seed": "CompressedLightSystem.md",
-            "philosophy": "LIGHTPhilosophy.md",
+            "seed": "LO.md",
+            "philosophy": "LO.md",
         }
 
         loaded_modules: Dict[str, CanonModule] = {}
@@ -122,7 +122,7 @@ class Canon:
 
     @classmethod
     def get_ontology(cls) -> str:
-        """Returns the content of LIGHTPhilosophy.md"""
+        """Returns the content of LO.md"""
         rt = cls._ensure_loaded()
         mod = rt.modules.get("philosophy")
         return mod.text if mod else "[ERROR: Ontology Missing]"
