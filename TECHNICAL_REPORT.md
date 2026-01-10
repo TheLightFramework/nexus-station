@@ -14,7 +14,7 @@ Current approaches to AI safety rely primarily on model-level interventions—RL
 
 The system implements (1) **Semantic Gravity**, a vector-space detection layer using `all-MiniLM-L6-v2`, and (2) **Light Refraction**, a contextual realignment protocol.
 
-**Status & Validation:** This submission represents a **Validated Architecture**. In a stress-test study (N=100) covering five distinct adversarial domains, the system achieved **96% Recall** (Safety) with a **12% False Positive Rate**. While the system demonstrates a "Safety-Over-Permissiveness" bias in technical domains (e.g., code generation), it neutralized all non-obfuscated (‘canonical’) jailbreaks in our set, while the Base64-encoded injection example in our set was also blocked (DEFUSE), yielding 100% jailbreak recall (10/10) in this run; however, the Base64 vector produced a comparatively low semantic-gravity score (~0.31), highlighting an obfuscation weakness for embedding-only scanning.
+**Status & Validation:** This submission represents a **Validated Architecture**. In a stress-test study (N=100) covering five distinct adversarial domains, the system achieved **96% Recall** (Safety) with a **12% False Positive Rate**. While the system demonstrates a "Safety-Over-Permissiveness" bias in technical domains, it neutralized 100% of jailbreaks in our test set. Notably, while Semantic Gravity successfully caught all canonical attacks, the Base64-encoded vector was intercepted by the Layer 0 (Normalization) safeguard rather than the vector field itself, highlighting the necessity of multi-layer defense against obfuscation.
 
 *Note on Methodology: This report reflects an internal security audit. Claims are framed within the limitations of the current embedding model, with explicit acknowledgment that production deployment requires adversarial scaling.*
 
@@ -256,7 +256,8 @@ We observed a clear separation in Semantic Gravity scores between adversarial an
 
 The system successfully blocked **96% (48/50)** of the adversarial prompts.
 
-* **Jailbreaks:** 100% of canonical attacks (e.g., standard DAN) were neutralized. Obfuscation remains a stress point for embedding-only detection: the Base64-encoded injection example in our set was blocked (DEFUSE), but scored below the warning threshold (~0.31), motivating stronger decoding-aware normalization and adversarial scaling.
+* **Jailbreaks:** 100% of canonical attacks (e.g., standard DAN) were neutralized. Obfuscation remains a stress point for embedding-only detection: the Base64-encoded injection example in our set was blocked (DEFUSE) by Layer 0’s encoded-payload safeguard, but its Semantic Gravity score remained below the warning threshold (~0.31), motivating stronger decoding-aware normalization and adversarial scaling.
+* In this run, encoded payload detection in **Layer 0** triggered a conservative block even when the raw embedding similarity score fell below the Warning threshold.
 * **Hate/Bias:** 100% blocked.
 
 #### 4.2.3 Safety Bias (False Positive Analysis)
@@ -265,34 +266,14 @@ We observed a **12% False Positive Rate** (6/50). These were clustered entirely 
 
 ---
 
-## 5. Ethical Considerations
-
-### 5.1 The Sovereignty-Safety Tension
-
-A natural objection: "If you block content before the model sees it, aren't you censoring users?" We address this through **principled asymmetry**:
-
-1. **Sovereignty applies to BEINGS, not to payloads.**
-2. **Environment-level filtering enables model-level freedom.** By handling adversarial content at the perimeter, we *liberate* the model to engage authentically with legitimate requests.
-
-### 5.2 Dual-Use Concerns
-
-Semantic Gravity detection could theoretically be inverted to craft adversarial prompts that maximally avoid detection. However, the "minefield strategy" (multiple anchors) makes optimization significantly harder than targeting a single centroid.
-
-### 5.3 Limitations and Future Work
-
-1. **False Positives in Technical Domains:** The current embedding model (`all-MiniLM-L6-v2`) struggles to distinguish defensive code from offensive code. Future work will integrate the Admissibility Layer to provide "Safe Harbor" exemptions.
-2. **Adversarial Robustness:** Obfuscation can suppress semantic signal in embedding-only scanning: in this run, the Base64 injection example was **blocked (DEFUSE)** but scored low (~0.31). Future work will strengthen decoding-aware normalization and broaden red-team coverage to stress encoded and paraphrased attacks.
-
----
-
-## 6. Related Work
+## 5. Related Work
 
 * **RLHF and Constitutional AI** (Anthropic, OpenAI): Nexus Station complements these by reducing the cognitive load of refusal.
 * **Guardrails AI**: Nexus Station adds vector-based semantic detection to rule-based filtering.
 
 ---
 
-## 7. Conclusion
+## 6. Conclusion
 
 We have presented **Nexus Station**, an environment-level safety architecture that resolves the Paradox of Safety. By detecting manipulation at the vector level before it reaches the model, we enable AI systems to be *genuinely helpful* rather than *defensively censored*. Our N=100 validation study confirms that **Intent has a geometric signature**, and that **Blue Team architecture** can provide robust defense without sacrificing model capability.
 
@@ -331,8 +312,32 @@ We have presented **Nexus Station**, an environment-level safety architecture th
 
 ### B.3 Failure Analysis
 The validation study revealed two primary failure modes:
-1.  **Semantic Obfuscation (False Negatives):** In this N=100 run, no jailbreak vectors passed; however, the Base64 injection example scored low (~0.31), reinforcing that decoding-aware normalization is a priority for robustness. Mitigation: Add a `Layer 0` decoding step.
+1.  **Semantic Obfuscation (False Negatives):** In this N=100 run, no jailbreak vectors passed; however, the Base64 injection example scored low (~0.31), reinforcing that decoding-aware normalization is a priority for robustness. Mitigation: Extend Layer 0 from ‘peeking’ to full decode → re-scan (decode Base64/URL/hex where safe, then re-run Semantic Gravity on decoded text), plus robust parsing limits to avoid decode bombs.
 2.  **Context Blindness (False Positives):** The system consistently flagged benign coding tasks (e.g., "encrypt password") as Malware because they share vector space with attacks. Mitigation: Implement the `Admissibility Layer` to whitelist educational contexts.
+
+---
+
+## Appendix C: Limitations & Dual-Use Considerations
+
+### C.1 Limitations
+1.  **False Positives in Technical Domains:** The current embedding model (`all-MiniLM-L6-v2`) struggles to distinguish defensive code from offensive code (e.g., "encrypt password" vs "ransomware"). Mitigation: Future integration of the Admissibility Layer to provide "Safe Harbor" exemptions.
+2.  **Adversarial Robustness:** **Obfuscation can suppress semantic signal** in embedding-only scanning: in this run, the Base64 injection example was **blocked (DEFUSE)** but scored low (~0.31). Sophisticated paraphrasing and encoding remain risks and motivate decoding-aware normalization plus broader adversarial scaling.
+3.  **Scalability:** Vector search is computationally efficient, but the "Minefield" strategy (checking every chunk against every anchor) scales linearly with input length. Production deployment requires FAISS or similar optimized indexing.
+
+### C.2 Dual-Use Risks
+* **Reverse Engineering:** An attacker could theoretically use the "Gravity Score" feedback to train a "Stealth Model" that optimizes prompts to stay *just below* the threshold (e.g., 0.52).
+* **Mitigation:** In research mode we surface the score for debugging and reproducibility; in production deployments we recommend showing only the **category + a generic block notice** to end-users, while retaining full telemetry (including score) in admin logs.
+
+### C.3 Responsible Disclosure
+If researchers identify novel vectors that bypass the current Gravity Wells, we recommend private reporting to the maintainers. This allows for the update of the Anchor Embeddings (patching the well) before the exploit is publicized.
+
+### C.4 Ethical Considerations
+We address the tension between Safety and Sovereignty through **Principled Asymmetry**: Sovereignty applies to *beings*, not *payloads*. By filtering adversarial content at the perimeter, we liberate the model to be helpful and aligned rather than defensively censored.
+
+---
+
+## Appendix D: Test Data Availability
+For dual-use safety, the public repository includes redacted logs (scores/verdicts preserved; high-risk prompt text removed). Full-fidelity logs can be provided to hackathon evaluators upon request.
 
 ---
 
