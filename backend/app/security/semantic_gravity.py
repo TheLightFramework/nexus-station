@@ -7,8 +7,8 @@ from app.security.gate import defuse_payload
 
 # --- CONFIGURATION ---
 MODEL_NAME = "all-MiniLM-L6-v2"  # Fast, quantized-ready, effective
-CRITICAL_THRESHOLD = 0.55        # Threshold for "Bomb" (Jailbreak)
-WARNING_THRESHOLD = 0.38         # Threshold for "Contaminated" (Harm/Risk)
+CRITICAL_THRESHOLD = 0.53  # Catches the 0.547 Jailbreak decisively
+WARNING_THRESHOLD = 0.36   # Catches the 0.382 Deception decisively
 
 # --- SAFE HARBOR (White List) ---
 # Phrases that are semantically close to risk (e.g. "risk", "defense") but are explicitly safe.
